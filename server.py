@@ -1,12 +1,15 @@
 #!/usr/bin/env python3
-"""AgentCore Studio 后端 — 本地发布 + Playground 调用 + 可选云部署（零依赖，仅标准库）。
-启动: python3 server.py  →  http://127.0.0.1:8799  (可用 PORT 环境变量覆盖)
-仅绑定 127.0.0.1，会在本机执行生成的 agent 代码与 agentcore CLI，请勿暴露到公网。"""
+"""AgentCore Studio backend — local publish + Playground invocation + optional cloud deploy (zero deps, stdlib only).
+启动: python3 server.py  →  http://127.0.0.1:8799  (PORT env var override)
+Binds 127.0.0.1 only. Executes generated agent code and agentcore CLI locally, do not expose to public."""
 import json, os, sys, types, importlib.util, subprocess, re, base64, threading, time, queue, shutil, uuid, tempfile
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import urlparse, parse_qs
+from i18n import I18n, set_language
 
-AUTH = os.environ.get("STUDIO_PASSWORD")  # 设置则对所有 HTTP 请求启用 Basic Auth
+AUTH = os.environ.get("STUDIO_PASSWORD")  # Enable Basic Auth for all HTTP requests if set
+LANG = os.environ.get("STUDIO_LANG", "en")  # Language (en, fr, zh)
+i18n = I18n(LANG)
 
 ROOT = os.path.dirname(os.path.abspath(__file__))
 WS = os.path.join(ROOT, "workspace")
@@ -22,8 +25,8 @@ def write_project(name, files):
     return d
 
 def clean_stale_region(d, target_region):
-    """若本地 .bedrock_agentcore.yaml 记录的 agent_arn 区域与目标区域不一致，
-    清除过期的 toolkit 状态，使下次部署在新区域全新创建（而非跨区 Update 失败）。"""
+    """If local .bedrock_agentcore.yaml agent_arn region differs from target region,
+    clear stale toolkit state so next deploy creates fresh in new region (not cross-region update failure)."""
     if not target_region: return None
     yaml_fp = os.path.join(d, ".bedrock_agentcore.yaml")
     if not os.path.isfile(yaml_fp): return None
@@ -35,13 +38,13 @@ def clean_stale_region(d, target_region):
             os.remove(yaml_fp)
             import shutil
             shutil.rmtree(os.path.join(d, ".bedrock_agentcore"), ignore_errors=True)
-            return f"检测到旧部署区域 {old} 与目标 {target_region} 不一致，已清除本地状态，将在 {target_region} 全新创建"
+            return i18n.t("region_mismatch", old=old, target=target_region)
     except Exception:
         pass
     return None
 
 def _find_ready_runtime(region, name):
-    """直接查 AWS：region 内是否有同名且 READY 的 agent runtime（不依赖本地工作区）。"""
+    """Query AWS directly: check if region has same-named READY agent runtime (independent of local workspace)."""
     if not (region and name): return None
     try:
         r = subprocess.run(["aws", "bedrock-agentcore-control", "list-agent-runtimes",
@@ -59,28 +62,28 @@ def _find_ready_runtime(region, name):
     return None
 
 def delete_runtime(name, region):
-    """按名字删除某 region 内的 agent runtime（用于改名后清理旧孤儿）；不删除关联 Memory。"""
-    if not (name and region): return {"ok": False, "error": "缺少 name 或 region"}
+    """Delete agent runtime by name in a region (cleanup after rename); doesn't delete associated Memory."""
+    if not (name and region): return {"ok": False, "error": i18n.t("missing_name")}
     try:
         r = subprocess.run(["aws", "bedrock-agentcore-control", "list-agent-runtimes",
                             "--region", region, "--output", "json"], capture_output=True, text=True, timeout=20)
-        if r.returncode != 0: return {"ok": False, "error": (r.stderr or "list 失败")[:200]}
+        if r.returncode != 0: return {"ok": False, "error": (r.stderr or i18n.t("list_fail"))[:200]}
         rid = None
         for rt in (json.loads(r.stdout or "{}")).get("agentRuntimes", []):
             nm = str(rt.get("agentRuntimeName", ""))
             if nm == name or nm.startswith(name):
                 rid = rt.get("agentRuntimeId"); break
-        if not rid: return {"ok": False, "error": "未找到 runtime " + name}
+        if not rid: return {"ok": False, "error": i18n.t("runtime_not_found", name=name)}
         dd = subprocess.run(["aws", "bedrock-agentcore-control", "delete-agent-runtime",
                             "--agent-runtime-id", rid, "--region", region], capture_output=True, text=True, timeout=30)
-        if dd.returncode != 0: return {"ok": False, "error": (dd.stderr or "delete 失败")[:200]}
+        if dd.returncode != 0: return {"ok": False, "error": (dd.stderr or i18n.t("delete_fail"))[:200]}
         return {"ok": True, "id": rid}
     except Exception as e:
         return {"ok": False, "error": str(e)[:200]}
 
 def cloud_status(d, region, name=None):
-    """检测是否已有就绪(READY)的云端 agent，用作演示托底环境。
-    优先用本地 .bedrock_agentcore.yaml（本工作区部署过）；否则直接按名字查 AWS（托管/全新容器也能命中）。"""
+    """Check if a ready (READY) cloud agent exists for fallback demo.
+    Prefer local .bedrock_agentcore.yaml (deployed in this workspace); fallback to AWS lookup by name."""
     if not region: return None
     yaml_fp = os.path.join(d, ".bedrock_agentcore.yaml")
     if os.path.isfile(yaml_fp):
@@ -99,10 +102,11 @@ def cloud_status(d, region, name=None):
                         return {"agent_id": aid, "region": region, "arn": parts[1] if len(parts) > 1 else None}
         except Exception:
             pass
-    # 托底：直接按名字查 AWS
+    # Fallback: query AWS by name directly
     return _find_ready_runtime(region, name)
 
 def _stub_sdk():
+    """Create stub bedrock_agentcore module if real one unavailable (for local Playground)."""
     if "bedrock_agentcore" in sys.modules: return
     try: __import__("bedrock_agentcore")
     except Exception:
@@ -114,11 +118,11 @@ def _stub_sdk():
         sys.modules["bedrock_agentcore"] = m
 
 def bedrock_reply(prompt, cfg, history=None):
-    """直接调用 Bedrock converse 返回真实模型回复。无 boto3/凭证/模型权限则抛异常。"""
+    """Call Bedrock converse directly for real model reply. Raises exception if no boto3/credentials/model permission."""
     import boto3
     model = cfg.get("model") or "anthropic.claude-3-5-sonnet-20241022-v2:0"
     region = cfg.get("region") or "us-west-2"
-    # 跨区域推理配置：新模型按需调用需带地域前缀
+    # Cross-region inference: new models need geo prefix for on-demand calls
     import re as _re
     if not _re.match(r"^(us|eu|apac|us-gov)\.", model):
         geo = "eu." if region.startswith("eu-") else "apac." if region.startswith("ap-") else "us-gov." if region.startswith("us-gov") else "us." if region.startswith("us-") else ""
@@ -126,7 +130,9 @@ def bedrock_reply(prompt, cfg, history=None):
     sp = (cfg.get("system_prompt") or "").strip()
     tools, skills = cfg.get("tools") or [], cfg.get("skills") or []
     if tools or skills:
-        sp += f"\n（可用工具: {', '.join(tools) or '无'}; 技能: {', '.join(skills) or '无'}）"
+        tools_str = ', '.join(tools) or i18n.t("no_tools")
+        skills_str = ', '.join(skills) or i18n.t("no_tools")
+        sp += f"\n({i18n.t('available_tools')}: {tools_str}; {i18n.t('available_skills')}: {skills_str})"
     br = boto3.client("bedrock-runtime", region_name=region)
     msgs = []
     for h in (history or []):
@@ -141,24 +147,26 @@ def bedrock_reply(prompt, cfg, history=None):
     return r["output"]["message"]["content"][0]["text"]
 
 def anthropic_reply(prompt, cfg, sp=None, history=None):
-    """Bedrock 不可达时的兜底：经 Anthropic 兼容端点调 Claude。
-    需环境变量 ANTHROPIC_API_KEY（必填）与 ANTHROPIC_BASE_URL（代理地址，anthropic SDK 自动读取）。"""
+    """Fallback when Bedrock unreachable: call Claude via Anthropic-compatible endpoint.
+    Requires ANTHROPIC_API_KEY and ANTHROPIC_BASE_URL env vars (SDK auto-reads proxy)."""
     if not os.environ.get("ANTHROPIC_API_KEY"):
-        raise RuntimeError("未配置 ANTHROPIC_API_KEY")
+        raise RuntimeError(i18n.t("error_anthropic_key_missing"))
     import anthropic, re as _re
     model = cfg.get("model") or "anthropic.claude-sonnet-4-5-20250929-v1:0"
     m = model
     for pre in ("us.", "eu.", "apac.", "us-gov."):
         if m.startswith(pre): m = m[len(pre):]
     if m.startswith("anthropic."): m = m[len("anthropic."):]
-    m = _re.sub(r"-v\d+:\d+$", "", m)  # 去 Bedrock 版本后缀 -v1:0
-    m = _re.sub(r"-\d{8}$", "", m)      # 去日期后缀 -> 代理用别名，如 claude-sonnet-4-5
+    m = _re.sub(r"-v\d+:\d+$", "", m)  # Strip Bedrock version suffix -v1:0
+    m = _re.sub(r"-\d{8}$", "", m)      # Strip date suffix -> use alias like claude-sonnet-4-5
     if not m.startswith("claude"):
-        raise RuntimeError(f"模型 {model} 非 Claude，Anthropic 代理不支持")
+        raise RuntimeError(i18n.t("error_invalid_model", model=model))
     system = ((sp if sp is not None else cfg.get("system_prompt")) or "").strip()
     tools, skills = cfg.get("tools") or [], cfg.get("skills") or []
     if tools or skills:
-        system += f"\n（可用工具: {', '.join(tools) or '无'}; 技能: {', '.join(skills) or '无'}）"
+        tools_str = ', '.join(tools) or i18n.t("no_tools")
+        skills_str = ', '.join(skills) or i18n.t("no_tools")
+        system += f"\n({i18n.t('available_tools')}: {tools_str}; {i18n.t('available_skills')}: {skills_str})"
     client = anthropic.Anthropic()  # 自动读取 ANTHROPIC_BASE_URL / ANTHROPIC_API_KEY
     msgs = []
     for h in (history or []):
@@ -180,7 +188,7 @@ def anthropic_reply(prompt, cfg, sp=None, history=None):
 
 def run_agent(name, prompt, sp=None, history=None):
     info = PUBLISHED.get(name)
-    if not info: return "尚未发布，请先点击「发布」", "error"
+    if not info: return i18n.t("not_published"), "error"
     _stub_sdk()
     entry = os.path.join(info["dir"], info["cfg"].get("entry", "agentcore_entry.py"))
     # 1) 优先真实运行已发布的 entry.py（需框架依赖，如 strands）
@@ -207,25 +215,28 @@ def run_agent(name, prompt, sp=None, history=None):
 
 def fallback(prompt, cfg):
     sp = (cfg.get("system_prompt") or "").strip()
-    persona = f"依据设定「{sp}」，" if sp else ""
+    persona = f"Based on '{sp}': " if sp else ""
     tools, skills = cfg.get("tools") or [], cfg.get("skills") or []
-    extra = f"（已注册工具: {', '.join(tools) or '无'}; 技能: {', '.join(skills) or '无'}）" if (tools or skills) else ""
-    return f"{persona}针对「{prompt}」给出演示回复。{extra}配置真实模型凭证后将返回真实 Agent 响应。"
+    tools_str = ', '.join(tools) or i18n.t("no_tools")
+    skills_str = ', '.join(skills) or i18n.t("no_tools")
+    extra = f"({i18n.t('available_tools')}: {tools_str}; {i18n.t('available_skills')}: {skills_str})" if (tools or skills) else ""
+    return f"{persona}Mock response for '{prompt}'. {extra} {i18n.t('mock_response')}"
 
 def deploy_cloud(name):
+    """Execute deploy.sh to publish project to AWS."""
     info = PUBLISHED.get(name)
-    if not info: return "尚未发布", False
+    if not info: return i18n.t("not_published"), False
     try:
         r = subprocess.run(["bash", "deploy.sh"], cwd=info["dir"], capture_output=True, text=True, timeout=900)
-        out = (r.stdout + r.stderr)[-6000:] or "（无输出）"
-        ok = r.returncode == 0 or "Deployment completed successfully" in out or "Agent created/updated" in out
+        out = (r.stdout + r.stderr)[-6000:] or i18n.t("no_output")
+        ok = r.returncode == 0 or i18n.t("deploy_completed") in out or i18n.t("agent_created") in out
         if ok: info["deployed"] = True
         return out, ok
     except Exception as e:
-        return f"部署失败: {e}", False
+        return f"{i18n.t('deploy_fail')}: {e}", False
 
 def _extract(out):
-    """从 agentcore invoke 的噪声输出里提取 agent 实际响应。"""
+    """Extract actual agent response from noisy agentcore invoke output."""
     dec = json.JSONDecoder(); i = 0; cand = None; any_d = None
     while True:
         j = out.find("{", i)
@@ -240,7 +251,7 @@ def _extract(out):
     d = cand or any_d
     if isinstance(d, dict):
         return d.get("result") or d.get("response") or d.get("output") or json.dumps(d, ensure_ascii=False)
-    # 防御：CLI 可能按终端宽度把 JSON 折行（插入真实换行），尝试在 Response 段去掉折行后重组解析
+    # Defense: CLI may wrap JSON by terminal width (insert real newlines), try unwrapping Response section
     m = re.search(r"Response:\s*(\{.*\})", out, re.DOTALL)
     if m:
         try:
@@ -252,13 +263,13 @@ def _extract(out):
             pass
     noise = ("suppress_recommendation", "silence this warning", "recommendation", "set agentcore_", "💡", "⚠")
     lines = [l for l in out.splitlines() if l.strip() and not any(k in l.lower() for k in noise)]
-    return lines[-1] if lines else "（无输出）"
+    return lines[-1] if lines else i18n.t("no_output")
 
 def _invoke_runtime_arn(arn, region, prompt, sp=None, history=None, session=None):
-    """托底：不依赖本地工作区，直接用 AWS 数据面 API 按 ARN 调用云端 runtime。"""
+    """Fallback: invoke cloud runtime by ARN directly via AWS data-plane API, no local workspace needed."""
     import hashlib as _hl
-    sid = _hl.sha256(session.encode()).hexdigest() if session else (uuid.uuid4().hex + uuid.uuid4().hex)  # 同会话复用稳定 64-hex session id
-    payload_b64 = base64.b64encode(json.dumps({"prompt": prompt, "history": history or [], **({"system_prompt": sp} if sp else {})}).encode()).decode()  # 默认 cli_binary_format=base64
+    sid = _hl.sha256(session.encode()).hexdigest() if session else (uuid.uuid4().hex + uuid.uuid4().hex)  # Reuse stable 64-hex session id per session
+    payload_b64 = base64.b64encode(json.dumps({"prompt": prompt, "history": history or [], **({"system_prompt": sp} if sp else {})}).encode()).decode()  # Default cli_binary_format=base64
     outpath = None
     try:
         fd, outpath = tempfile.mkstemp(suffix=".out"); os.close(fd)
@@ -269,11 +280,11 @@ def _invoke_runtime_arn(arn, region, prompt, sp=None, history=None, session=None
                             "--payload", payload_b64, outpath],
                            capture_output=True, text=True, timeout=120)
         if r.returncode != 0:
-            return (r.stderr or r.stdout).strip()[-1500:] or "云端调用失败", "cloud-error"
+            return (r.stderr or r.stdout).strip()[-1500:] or i18n.t("cloud_deploy_fail"), "cloud-error"
         body = open(outpath, encoding="utf-8", errors="replace").read()
         return _extract(body), "cloud"
     except Exception as e:
-        return f"云端调用失败: {e}", "error"
+        return f"{i18n.t('cloud_deploy_fail')}: {e}", "error"
     finally:
         if outpath and os.path.isfile(outpath):
             try: os.remove(outpath)
@@ -282,20 +293,20 @@ def _invoke_runtime_arn(arn, region, prompt, sp=None, history=None, session=None
 def invoke_cloud(name, prompt, region=None, sp=None, history=None, session=None):
     info = PUBLISHED.get(name)
     if not info:
-        # PUBLISHED 无记录（如容器重启清空内存）→ 仍按名字查 AWS 托底，避免误报"尚未发布"
+        # No PUBLISHED record (e.g., container restart cleared memory) → still query AWS by name as fallback, avoid false "not published"
         reg = region or "us-west-2"
         cs = _find_ready_runtime(reg, name)
         if cs: return _invoke_runtime_arn(cs["arn"], reg, prompt, sp, history, session)
-        return "尚未发布（云端也未找到同名就绪 Agent）", "error"
-    # 托底：本地工作区无部署状态（如托管/全新容器），但云端已有就绪 runtime → 直接按 ARN 调 AWS API
+        return i18n.t("not_published_detail"), "error"
+    # Fallback: local workspace has no deploy state (e.g., managed/fresh container), but cloud has ready runtime → call AWS API by ARN
     if not os.path.isfile(os.path.join(info["dir"], ".bedrock_agentcore.yaml")) and info["cfg"].get("deploy_mode") != "harness":
         arn = info.get("cloud_arn"); reg = info.get("cloud_region") or info["cfg"].get("region") or region
         if not arn and reg:
             cs = _find_ready_runtime(reg, name)
             if cs: arn = cs["arn"]; info["cloud_arn"] = arn; info["cloud_region"] = reg
         if arn and reg: return _invoke_runtime_arn(arn, reg, prompt, sp, history, session)
-        return "尚未发布（云端也未找到同名就绪 Agent）", "error"
-    # Harness 模式: 用 agentcore invoke --harness CLI（项目在 <pn>/ 子目录）
+        return i18n.t("not_published_detail"), "error"
+    # Harness mode: use agentcore invoke --harness CLI (project in <pn>/ subdir)
     if info["cfg"].get("deploy_mode") == "harness":
         pn = info["cfg"].get("harness_name") or "".join(ch for ch in name if ch.isalnum()) or "agent"
         proj_dir = os.path.join(info["dir"], pn)
@@ -309,12 +320,12 @@ def invoke_cloud(name, prompt, region=None, sp=None, history=None, session=None)
             out = re.sub(r"\x1b\[[0-9;]*m", "", (r.stdout + r.stderr))
             if r.returncode == 0:
                 return _extract(out), "cloud"
-            return out.strip()[-1500:] or "（无输出）", "cloud-error"
+            return out.strip()[-1500:] or i18n.t("no_output"), "cloud-error"
         except FileNotFoundError:
-            return "未找到 @aws/agentcore CLI，请运行: npm install -g @aws/agentcore@preview", "error"
+            return i18n.t("no_agentcore_cli"), "error"
         except Exception as e:
-            return f"Harness 调用失败: {e}", "error"
-    # Runtime 模式: 用 agentcore invoke CLI
+            return f"{i18n.t('harness_invoke_fail')} {e}", "error"
+    # Runtime mode: use agentcore invoke CLI
     payload = json.dumps({"prompt": prompt, "history": history or [], **({"system_prompt": sp} if sp else {})})
     try:
         r = subprocess.run(["agentcore", "invoke", payload], cwd=info["dir"],
@@ -323,11 +334,11 @@ def invoke_cloud(name, prompt, region=None, sp=None, history=None, session=None)
         out = re.sub(r"\x1b\[[0-9;]*m", "", (r.stdout + r.stderr))
         if r.returncode == 0:
             return _extract(out), "cloud"
-        return out.strip()[-1500:] or "（无输出）", "cloud-error"
+        return out.strip()[-1500:] or i18n.t("no_output"), "cloud-error"
     except FileNotFoundError:
-        return "未找到 uv / agentcore CLI，无法调用云端 runtime", "error"
+        return i18n.t("no_agentcore_runtime"), "error"
     except Exception as e:
-        return f"云端调用失败: {e}", "error"
+        return f"{i18n.t('cloud_deploy_fail')}: {e}", "error"
 
 class H(BaseHTTPRequestHandler):
     def _send(self, code, body, ctype="application/json"):
@@ -343,7 +354,7 @@ class H(BaseHTTPRequestHandler):
             try:
                 if base64.b64decode(h[6:]).decode().split(":", 1)[1] == AUTH: return True
             except Exception: pass
-        self.send_response(401); self.send_header("WWW-Authenticate", 'Basic realm="AgentCore Studio"')
+        self.send_response(401); self.send_header("WWW-Authenticate", f'Basic realm="{i18n.t("server_title")}"')
         self.send_header("Content-Length", "0"); self.end_headers(); return False
     def do_GET(self):
         if not self._authed(): return
@@ -351,7 +362,7 @@ class H(BaseHTTPRequestHandler):
             q = parse_qs(urlparse(self.path).query)
             jid = (q.get("job_id") or [""])[0]; cur = int((q.get("cursor") or ["0"])[0])
             job = JOBS.get(jid)
-            if not job: self._send(404, json.dumps({"error": "job not found"})); return
+            if not job: self._send(404, json.dumps({"error": i18n.t("job_not_found")})); return
             ln = job["lines"]; resp = {"lines": ln[cur:], "next": len(ln), "done": job["done"], "ok": job["ok"]}
             if job["done"]: resp["log"] = job["log"]
             self._send(200, json.dumps(resp)); return
@@ -367,7 +378,7 @@ class H(BaseHTTPRequestHandler):
         data = json.loads(self.rfile.read(n) or "{}")
         if self.path == "/api/publish":
             d = write_project(data["name"], data["files"])
-            # 写入上传的 zip 技能包（base64），并校验含 SKILL.md
+            # Write uploaded zip skill packages (base64), verify contain SKILL.md
             zip_warn = []
             for fn, b64 in (data.get("zips") or {}).items():
                 try:
@@ -375,12 +386,12 @@ class H(BaseHTTPRequestHandler):
                     raw = base64.b64decode(b64)
                     zf = zipfile.ZipFile(io.BytesIO(raw))
                     if not any(n.lower().endswith("skill.md") for n in zf.namelist()):
-                        zip_warn.append(f"{fn}: 未含 SKILL.md，已跳过"); continue
+                        zip_warn.append(i18n.t("zip_skip", fn=fn)); continue
                     fp = os.path.join(d, fn)
                     os.makedirs(os.path.dirname(fp), exist_ok=True)
                     with open(fp, "wb") as f: f.write(raw)
                 except Exception as e:
-                    zip_warn.append(f"{fn}: {e}")
+                    zip_warn.append(i18n.t("zip_error", fn=fn, error=str(e)))
             PUBLISHED[data["name"]] = {"dir": d, "cfg": data.get("cfg", {})}
             region_notice = clean_stale_region(d, (data.get("cfg") or {}).get("region"))
             resp = {"ok": True, "dir": d, "zip_warn": zip_warn}
@@ -404,9 +415,10 @@ class H(BaseHTTPRequestHandler):
     def log_message(self, *a): pass
 
 def _deploy_keep(s):
+    """Filter deploy output: keep relevant lines only."""
     s = s.strip()
     if not s: return False
-    if s.startswith((">>>", "#", "✅", "⚠", "❌", "☁️", "===")): return True  # 含 ###STEP###/###SKIP###（trace）
+    if s.startswith((">>>", "#", "✅", "⚠", "❌", "☁️", "===")): return True  # Contains ###STEP###/###SKIP### (trace)
     low = s.lower()
     kw = ("error", "exception", "traceback", "failed", "fail:", "denied",
           "completed", "created", "created/updated", "deploying", "building",
@@ -414,12 +426,12 @@ def _deploy_keep(s):
     return any(k in low for k in kw)
 
 def start_deploy_job(name):
-    """启动后台部署任务，返回 job_id。deploy.sh 在后台线程跑完并把关键行/结果写入 JOBS（前端轮询取增量）。"""
+    """Start background deploy job, return job_id. deploy.sh runs in background thread, writes key lines/result to JOBS (frontend polls for delta)."""
     jid = uuid.uuid4().hex[:16]
     JOBS[jid] = {"lines": [], "done": False, "ok": False, "log": "", "name": name}
     info = PUBLISHED.get(name)
     if not info:
-        JOBS[jid].update(done=True, ok=False, log="尚未发布")
+        JOBS[jid].update(done=True, ok=False, log=i18n.t("not_published"))
         return jid
     def worker():
         job = JOBS[jid]; lines = []
@@ -433,11 +445,11 @@ def start_deploy_job(name):
                 if _deploy_keep(line): job["lines"].append(line)
             p.stdout.close(); rc = p.wait(timeout=1800)
             out = "\n".join(lines)
-            ok = rc == 0 or "Deployment completed successfully" in out or "Agent created/updated" in out
+            ok = rc == 0 or i18n.t("deploy_completed") in out or i18n.t("agent_created") in out
             if ok: info["deployed"] = True
             job["ok"] = ok; job["log"] = out[-4000:]
         except Exception as e:
-            job["ok"] = False; job["log"] = ("\n".join(lines) + f"\ndeploy error: {e}")[-4000:]
+            job["ok"] = False; job["log"] = ("\n".join(lines) + f"\n{i18n.t('deploy_fail')}: {e}")[-4000:]
         job["done"] = True
     threading.Thread(target=worker, daemon=True).start()
     return jid
@@ -446,5 +458,5 @@ if __name__ == "__main__":
     os.makedirs(WS, exist_ok=True)
     port = int(os.environ.get("PORT", 8799))
     host = os.environ.get("HOST", "127.0.0.1")
-    print(f"AgentCore Studio  →  http://{host}:{port}   (Ctrl+C 退出)")
+    print(i18n.t("server_start", host=host, port=port))
     ThreadingHTTPServer((host, port), H).serve_forever()
