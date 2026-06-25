@@ -370,7 +370,11 @@ class H(BaseHTTPRequestHandler):
         fp = os.path.join(ROOT, path.lstrip("/"))
         if os.path.isfile(fp):
             ct = "text/html; charset=utf-8" if fp.endswith(".html") else "text/plain"
-            with open(fp, "rb") as f: self._send(200, f.read(), ct)
+            with open(fp, "rb") as f: content = f.read()
+            if fp.endswith(".html"):
+                inject = f'<script>window.STUDIO_LANG="{LANG}";</script>'.encode()
+                content = content.replace(b'</head>', inject + b'</head>', 1)
+            self._send(200, content, ct)
         else: self._send(404, "not found", "text/plain")
     def do_POST(self):
         if not self._authed(): return

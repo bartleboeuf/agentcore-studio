@@ -218,27 +218,28 @@
 <rect width="80" height="80" fill="white"/>
 </clipPath>
 </defs>
-</svg></div><div><h1>AgentCore Studio</h1><div class="sub">拖拽编排 · 一键上线你的 AI Agent</div></div></div>
+</svg></div><div><h1>AgentCore Studio</h1><div class="sub" id="appDesc">拖拽编排 · 一键上线你的 AI Agent</div></div></div>
   <span class="spacer"></span>
-  <a href="/compare.html" style="color:var(--muted);font-size:12px;text-decoration:none;padding:7px 12px;border-radius:8px;border:1px solid var(--line);transition:.15s" onmouseover="this.style.color='var(--orange)';this.style.borderColor='var(--orange)'" onmouseout="this.style.color='var(--muted)';this.style.borderColor='var(--line)'">📊 对比分析</a>
+  <a id="compareLink" href="/compare.html" style="color:var(--muted);font-size:12px;text-decoration:none;padding:7px 12px;border-radius:8px;border:1px solid var(--line);transition:.15s" onmouseover="this.style.color='var(--orange)';this.style.borderColor='var(--orange)'" onmouseout="this.style.color='var(--muted)';this.style.borderColor='var(--line)'">📊 对比分析</a>
   <span class="pill" id="statPill"><span class="dot"></span><span id="statTxt">空画布</span></span>
   <button class="btn-ghost" id="demoBtn" onclick="toggleDemo()" title="大屏演示模式 · 放大界面并适配画布 (Esc 退出)">🖥 演示模式</button>
-  <button class="btn-ghost" onclick="newAgent()">＋ 新建 Agent</button>
-  <select class="scenario-sel" onchange="if(this.value){loadScenario(this.value);this.selectedIndex=0}" title="一键载入演示场景">
+  <button class="btn-ghost" id="newAgentBtn" onclick="newAgent()">＋ 新建 Agent</button>
+  <select id="scenarioSel" class="scenario-sel" onchange="if(this.value){loadScenario(this.value);this.selectedIndex=0}" title="一键载入演示场景">
     <option value="">📦 载入场景…</option>
     <option value="minimal">极简对话 Agent</option>
     <option value="support">客服 Agent（带工具）</option>
     <option value="analyst">数据分析 Agent</option>
     <option value="full">全家桶（全部组件）</option>
   </select>
-  <button class="btn-pri" onclick="deployCloud()">☁️ 发布到云端</button>
-  <button class="btn-cloud" onclick="publish()">🚀 本地发布</button>
+  <button class="btn-ghost" id="langBtn" onclick="cycleLang()" title="Switch language / Changer de langue / 切换语言" style="min-width:52px;font-weight:700;letter-spacing:.5px">🌐 EN</button>
+  <button class="btn-pri" id="deployCloudBtn" onclick="deployCloud()">☁️ 发布到云端</button>
+  <button class="btn-cloud" id="publishBtn" onclick="publish()">🚀 本地发布</button>
 </header>
 <main>
   <div class="palette">
     <div id="palette"></div>
-    <h2 style="margin-top:18px">提示</h2>
-    <div class="pal-note">MCP Tool 与 Skill 是 Gateway 的工具目标，需先添加 Gateway。配置完点「发布」汇总确认后即可在 Playground 对话。</div>
+    <h2 id="palTitle" style="margin-top:18px">提示</h2>
+    <div class="pal-note" id="palNote">MCP Tool 与 Skill 是 Gateway 的工具目标，需先添加 Gateway。配置完点「发布」汇总确认后即可在 Playground 对话。</div>
   </div>
   <div class="canvas-wrap"><div id="canvas">
     <svg id="edges"><defs><linearGradient id="eg" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#FF9900"/><stop offset="1" stop-color="#4FC3F7"/></linearGradient></defs></svg>
@@ -261,127 +262,131 @@
     <!-- playground -->
     <div class="view" id="vPlay">
       <div class="pg">
-        <div class="pg-bar">来源 <button class="srcbtn on" id="srcLocal" onclick="setSrc('local')">本地模拟</button><button class="srcbtn" id="srcCloud" onclick="setSrc('cloud')">AWS 云端</button><span class="mode mock" id="pgMode">未发布</span></div>
+        <div class="pg-bar"><span id="srcBarLabel">来源</span> <button class="srcbtn on" id="srcLocal" onclick="setSrc('local')">本地模拟</button><button class="srcbtn" id="srcCloud" onclick="setSrc('cloud')">AWS 云端</button><span class="mode mock" id="pgMode">未发布</span></div>
         <div class="msgs" id="msgs"></div>
         <div class="pg-in"><input id="pgIn" placeholder="输入消息…" onkeydown="if(event.key==='Enter')sendMsg()"><button onclick="sendMsg()">发送</button></div>
       </div>
     </div>
     <!-- registry -->
     <div class="view" id="vReg" hidden>
-      <div class="reg-hd">AgentCore <b>Registry</b> · <span id="regCount">0</span> 条注册</div>
+      <div class="reg-hd" id="regHd">AgentCore <b>Registry</b> · <span id="regCount">0</span> 条注册</div>
       <div class="reg-list" id="regList"></div>
     </div>
   </div>
 </main>
 <div class="modal" id="modal"><div class="mcard">
-  <div class="mhd">🚀 发布前确认<span class="mx" onclick="closeModal()">×</span></div>
+  <div class="mhd" id="modalHd">🚀 发布前确认<span class="mx" onclick="closeModal()">×</span></div>
   <div class="mbody" id="reviewBody"></div>
-  <div class="mfoot"><button class="btn-ghost" onclick="closeModal()">取消</button><button class="btn-pri" id="pubConfirmBtn" onclick="doPublish()">确认发布</button></div>
+  <div class="mfoot"><button class="btn-ghost" id="cancelBtn" onclick="closeModal()">取消</button><button class="btn-pri" id="pubConfirmBtn" onclick="doPublish()">确认发布</button></div>
 </div></div>
 <div class="toast" id="toast"></div>
+<script src="i18n.js"></script>
 <script>
-const COMPONENTS={
+function buildComponents(){return{
   runtime:{label:'Runtime',ic:'⚙️',ac:'var(--rt)',required:true,fields:[
-    {k:'name',l:'Agent 名称',t:'text',d:'my_agent',hint:'仅下划线，不能用连字符'},
-    {k:'deploy_mode',l:'部署模式',t:'select',o:['runtime'],d:'runtime',hint:'runtime: 自定义代码部署'},
-    {k:'framework',l:'Agent 框架',t:'select',o:['strands','minimal','claude_sdk','langchain','custom'],d:'strands'},
-    {k:'model_id',l:'模型 ID',t:'select',o:['anthropic.claude-sonnet-4-5-20250929-v1:0','anthropic.claude-haiku-4-5-20251001-v1:0','anthropic.claude-opus-4-1-20250805-v1:0','amazon.nova-pro-v1:0','amazon.nova-lite-v1:0','amazon.nova-micro-v1:0'],d:'anthropic.claude-sonnet-4-5-20250929-v1:0'},
-    {k:'system_prompt',l:'系统提示 (System Prompt)',t:'textarea',d:'你是一个乐于助人的 AWS 助手。'},
-    {k:'temperature',l:'温度',t:'select',o:['0','0.3','0.7','1.0'],d:'0.7'},
-    {k:'max_tokens',l:'最大输出 Token',t:'text',d:'1024'},
-    {k:'deploy_type',l:'部署方式',t:'select',o:['direct_code_deploy','container'],d:'direct_code_deploy',hint:'direct_code_deploy: 代码包(S3); container: 容器镜像(ECR)'},
-    {k:'container_uri',l:'ECR 镜像 URI',t:'text',d:'',hint:'container 模式：自带镜像，留空则工具链自动构建并推送 ECR'},
-    {k:'code_s3',l:'代码包 S3 桶',t:'text',d:'',hint:'direct_code_deploy 模式：指定 S3 桶；留空则工具链自动托管'},
-    {k:'runtime',l:'运行时',t:'select',o:['PYTHON_3_10','PYTHON_3_11','PYTHON_3_12','PYTHON_3_13','PYTHON_3_14','NODE_22'],d:'PYTHON_3_11'},
-    {k:'region',l:'AWS 区域',t:'select',o:['us-west-2','us-east-1','ap-southeast-1'],d:'us-west-2'},
-    {k:'protocol',l:'协议',t:'select',o:['HTTP','MCP','A2A'],d:'HTTP'},
-    {k:'idle_timeout',l:'会话超时(秒)',t:'text',d:'900',hint:'60-28800'},
-    {k:'max_lifetime',l:'实例最大存活(秒)',t:'text',d:'28800',hint:'60-28800'},
-    {k:'env',l:'环境变量',t:'text',d:'',hint:'KEY=val,KEY2=val2'},
-    {k:'description',l:'描述',t:'text',d:'',hint:'Runtime 描述（可选）'}]},
+    {k:'name',l:t('cf_name'),t:'text',d:'my_agent',hint:t('ch_name')},
+    {k:'deploy_mode',l:t('cf_deploy_mode'),t:'select',o:['runtime'],d:'runtime',hint:t('ch_deploy_mode')},
+    {k:'framework',l:t('cf_framework'),t:'select',o:['strands','minimal','claude_sdk','langchain','custom'],d:'strands'},
+    {k:'model_id',l:t('cf_model_id'),t:'select',o:['anthropic.claude-sonnet-4-5-20250929-v1:0','anthropic.claude-haiku-4-5-20251001-v1:0','anthropic.claude-opus-4-1-20250805-v1:0','amazon.nova-pro-v1:0','amazon.nova-lite-v1:0','amazon.nova-micro-v1:0'],d:'anthropic.claude-sonnet-4-5-20250929-v1:0'},
+    {k:'system_prompt',l:t('cf_system_prompt'),t:'textarea',d:'你是一个乐于助人的 AWS 助手。'},
+    {k:'temperature',l:t('cf_temperature'),t:'select',o:['0','0.3','0.7','1.0'],d:'0.7'},
+    {k:'max_tokens',l:t('cf_max_tokens'),t:'text',d:'1024'},
+    {k:'deploy_type',l:t('cf_deploy_type'),t:'select',o:['direct_code_deploy','container'],d:'direct_code_deploy',hint:t('ch_deploy_type')},
+    {k:'container_uri',l:t('cf_container_uri'),t:'text',d:'',hint:t('ch_container_uri')},
+    {k:'code_s3',l:t('cf_code_s3'),t:'text',d:'',hint:t('ch_code_s3')},
+    {k:'runtime',l:t('cf_runtime'),t:'select',o:['PYTHON_3_10','PYTHON_3_11','PYTHON_3_12','PYTHON_3_13','PYTHON_3_14','NODE_22'],d:'PYTHON_3_11'},
+    {k:'region',l:t('cf_region'),t:'select',o:['us-west-2','us-east-1','ap-southeast-1'],d:'us-west-2'},
+    {k:'protocol',l:t('cf_protocol'),t:'select',o:['HTTP','MCP','A2A'],d:'HTTP'},
+    {k:'idle_timeout',l:t('cf_idle_timeout'),t:'text',d:'900',hint:'60-28800'},
+    {k:'max_lifetime',l:t('cf_max_lifetime'),t:'text',d:'28800',hint:'60-28800'},
+    {k:'env',l:t('cf_env'),t:'text',d:'',hint:'KEY=val,KEY2=val2'},
+    {k:'description',l:t('cf_description'),t:'text',d:'',hint:t('ch_description_rt')}]},
   memory:{label:'Memory',ic:'🧠',ac:'var(--mem)',fields:[
-    {k:'mem_name',l:'记忆名称',t:'text',d:'my_memory'},
-    {k:'mode',l:'记忆模式 (可多选)',t:'checks',o:['STM','LTM','STM_AND_LTM'],d:'STM_AND_LTM'},
-    {k:'strategy',l:'记忆策略 (可多选)',t:'checks',o:['SEMANTIC','SUMMARIZATION','USER_PREFERENCE'],d:'SEMANTIC'},
-    {k:'top_k',l:'检索条数 (top-k)',t:'text',d:'5'},
-    {k:'expiry',l:'事件保留天数',t:'text',d:'90'}]},
+    {k:'mem_name',l:t('cf_mem_name'),t:'text',d:'my_memory'},
+    {k:'mode',l:t('cf_mem_mode'),t:'checks',o:['STM','LTM','STM_AND_LTM'],d:'STM_AND_LTM'},
+    {k:'strategy',l:t('cf_mem_strategy'),t:'checks',o:['SEMANTIC','SUMMARIZATION','USER_PREFERENCE'],d:'SEMANTIC'},
+    {k:'top_k',l:t('cf_top_k'),t:'text',d:'5'},
+    {k:'expiry',l:t('cf_expiry'),t:'text',d:'90'}]},
   gateway:{label:'Gateway',ic:'🔌',ac:'var(--gw)',fields:[
-    {k:'gw_name',l:'Gateway 名称',t:'text',d:'my_gateway',hint:'名称创建后不可改；认证/语义搜索可原地更新（秒级，保留 ARN）'},
-    {k:'inbound_auth',l:'入站认证',t:'select',o:['IAM','JWT'],d:'IAM',hint:'JWT: 用 OAuth/JWT 授权服务器控制访问'},
-    {k:'discovery_url',l:'OIDC Discovery URL',t:'text',d:'',hint:'JWT 使用，如 https://.../.well-known/openid-configuration'},
-    {k:'allowed_audience',l:'允许的 Audience',t:'text',d:'',hint:'JWT 使用，逗号分隔'},
-    {k:'allowed_clients',l:'允许的 Client ID',t:'text',d:'',hint:'JWT 使用，逗号分隔'},
-    {k:'protocol',l:'协议',t:'select',o:['MCP'],d:'MCP'},
-    {k:'semantic',l:'语义搜索',t:'select',o:['true','false'],d:'true'},
-    {k:'description',l:'描述',t:'text',d:'工具网关'}]},
+    {k:'gw_name',l:t('cf_gw_name'),t:'text',d:'my_gateway',hint:t('ch_gw_name')},
+    {k:'inbound_auth',l:t('cf_inbound_auth'),t:'select',o:['IAM','JWT'],d:'IAM',hint:t('ch_inbound_auth')},
+    {k:'discovery_url',l:t('cf_discovery_url'),t:'text',d:'',hint:t('ch_discovery_url')},
+    {k:'allowed_audience',l:t('cf_allowed_audience'),t:'text',d:'',hint:t('ch_audience')},
+    {k:'allowed_clients',l:t('cf_allowed_clients'),t:'text',d:'',hint:t('ch_clients')},
+    {k:'protocol',l:t('cf_protocol'),t:'select',o:['MCP'],d:'MCP'},
+    {k:'semantic',l:t('cf_semantic'),t:'select',o:['true','false'],d:'true'},
+    {k:'description',l:t('cf_description'),t:'text',d:'工具网关'}]},
   mcp:{label:'MCP Tool',ic:'🧰',ac:'var(--mcp)',multi:true,parent:'gateway',fields:[
-    {k:'name',l:'工具名称',t:'text',d:'web_search'},
-    {k:'type',l:'Target 类型',t:'select',o:['lambda','web_search','openApiSchema','mcpServer','smithyModel'],d:'lambda',hint:'web_search=AgentCore 托管联网搜索内置 connector（仅 us-east-1，需 Gateway）'},
-    {k:'endpoint',l:'目标资源 (ARN/URL)',t:'text',d:'arn:aws:lambda:us-west-2:<ACCOUNT_ID>:function:my_fn'},
-    {k:'schema',l:'OpenAPI Schema (JSON/YAML)',t:'skillcode',d:'',hint:'仅 openApiSchema 类型；粘贴 OpenAPI 规范或上传'},
-    {k:'egress_auth',l:'出站认证',t:'select',o:['IAM','API_KEY','OAuth'],d:'IAM'},
-    {k:'credentials',l:'凭证 (API Key / OAuth ARN)',t:'text',d:'',hint:'API_KEY/OAuth 时填写凭证或 Secret ARN'},
-    {k:'description',l:'描述',t:'text',d:'工具描述'}]},
+    {k:'name',l:t('cf_tool_name'),t:'text',d:'web_search'},
+    {k:'type',l:t('cf_tool_type'),t:'select',o:['lambda','web_search','openApiSchema','mcpServer','smithyModel'],d:'lambda',hint:t('ch_tool_type')},
+    {k:'endpoint',l:t('cf_tool_endpoint'),t:'text',d:'arn:aws:lambda:us-west-2:<ACCOUNT_ID>:function:my_fn'},
+    {k:'schema',l:t('cf_tool_schema'),t:'skillcode',d:'',hint:t('ch_tool_schema')},
+    {k:'egress_auth',l:t('cf_egress_auth'),t:'select',o:['IAM','API_KEY','OAuth'],d:'IAM'},
+    {k:'credentials',l:t('cf_tool_credentials'),t:'text',d:'',hint:t('ch_credentials')},
+    {k:'description',l:t('cf_description'),t:'text',d:'工具描述'}]},
   skill:{label:'Skill',ic:'✨',ac:'var(--skill)',multi:true,parent:'gateway',fields:[
-    {k:'name',l:'技能名称',t:'text',d:'summarize'},
-    {k:'desc',l:'描述',t:'text',d:'总结长文本'},
-    {k:'category',l:'类别',t:'select',o:['analysis','generation','retrieval','automation'],d:'analysis'},
-    {k:'source_type',l:'技能来源',t:'select',o:['inline','path','upload'],d:'inline',hint:'inline: 内联代码; path: 本地路径; upload: 上传 zip 包'},
-    {k:'source',l:'文件/目录路径',t:'text',d:'',hint:'如 ./skills/summarize 或 /abs/path'},
-    {k:'code',l:'技能代码',t:'skillcode',d:'def run(prompt: str) -> str:\n    # 在此实现技能逻辑\n    return prompt'},
-    {k:'zipfile',l:'技能压缩包 (.zip)',t:'skillzip',d:'',hint:'zip 内必须包含 SKILL.md'}]},
+    {k:'name',l:t('cf_skill_name'),t:'text',d:'summarize'},
+    {k:'desc',l:t('cf_description'),t:'text',d:'总结长文本'},
+    {k:'category',l:t('cf_skill_category'),t:'select',o:['analysis','generation','retrieval','automation'],d:'analysis'},
+    {k:'source_type',l:t('cf_skill_source_type'),t:'select',o:['inline','path','upload'],d:'inline',hint:t('ch_skill_source_type')},
+    {k:'source',l:t('cf_skill_source'),t:'text',d:'',hint:t('ch_skill_source')},
+    {k:'code',l:t('cf_skill_code'),t:'skillcode',d:'def run(prompt: str) -> str:\n    # 在此实现技能逻辑\n    return prompt'},
+    {k:'zipfile',l:t('cf_skill_zipfile'),t:'skillzip',d:'',hint:t('ch_skill_zipfile')}]},
   codeinterp:{label:'Code Interpreter',ic:'💻',ac:'var(--ci)',fields:[
-    {k:'identifier',l:'解释器 ID',t:'text',d:'aws.codeinterpreter.v1'},
-    {k:'language',l:'语言',t:'select',o:['python','javascript'],d:'python'},
-    {k:'network',l:'网络模式',t:'select',o:['SANDBOX','PUBLIC'],d:'SANDBOX'},
-    {k:'timeout',l:'会话超时(秒)',t:'text',d:'900'}]},
+    {k:'identifier',l:t('cf_ci_identifier'),t:'text',d:'aws.codeinterpreter.v1'},
+    {k:'language',l:t('cf_language'),t:'select',o:['python','javascript'],d:'python'},
+    {k:'network',l:t('cf_network'),t:'select',o:['SANDBOX','PUBLIC'],d:'SANDBOX'},
+    {k:'timeout',l:t('cf_timeout'),t:'text',d:'900'}]},
   browser:{label:'Browser',ic:'🌐',ac:'var(--br)',fields:[
-    {k:'identifier',l:'浏览器 ID',t:'text',d:'aws.browser.v1'},
-    {k:'network',l:'网络模式',t:'select',o:['SANDBOX','PUBLIC'],d:'SANDBOX'},
-    {k:'live_view',l:'实时画面',t:'select',o:['true','false'],d:'true'},
-    {k:'recording',l:'会话录制',t:'select',o:['true','false'],d:'false'},
-    {k:'timeout',l:'会话超时(秒)',t:'text',d:'900'}]},
+    {k:'identifier',l:t('cf_br_identifier'),t:'text',d:'aws.browser.v1'},
+    {k:'network',l:t('cf_network'),t:'select',o:['SANDBOX','PUBLIC'],d:'SANDBOX'},
+    {k:'live_view',l:t('cf_live_view'),t:'select',o:['true','false'],d:'true'},
+    {k:'recording',l:t('cf_recording'),t:'select',o:['true','false'],d:'false'},
+    {k:'timeout',l:t('cf_timeout'),t:'text',d:'900'}]},
   identity:{label:'Identity',ic:'🔐',ac:'var(--id)',fields:[
-    {k:'inbound_auth',l:'入站认证 (Inbound)',t:'select',o:['IAM','JWT'],d:'IAM',hint:'谁能调用 Agent：IAM(SigV4) 或 JWT(OAuth/OIDC)'},
-    {k:'in_discovery_url',l:'OIDC Discovery URL',t:'text',d:'',hint:'JWT 入站使用'},
-    {k:'in_audience',l:'允许的 Audience',t:'text',d:'',hint:'JWT 入站，逗号分隔'},
-    {k:'in_clients',l:'允许的 Client ID',t:'text',d:'',hint:'JWT 入站，逗号分隔'},
-    {k:'outbound_auth',l:'出站认证 (Outbound)',t:'select',o:['none','oauth','apikey'],d:'none',hint:'Agent 如何访问外部服务'},
-    {k:'oauth_provider',l:'OAuth 提供方',t:'select',o:['google','github','slack','microsoft','salesforce','custom'],d:'google',hint:'出站 OAuth 3LO 提供方 ⚠ 创建后改配置需删除该提供方重建'},
-    {k:'provider_name',l:'凭证提供方名称',t:'text',d:'my_provider'},
+    {k:'inbound_auth',l:t('cf_id_inbound'),t:'select',o:['IAM','JWT'],d:'IAM',hint:t('ch_id_inbound')},
+    {k:'in_discovery_url',l:t('cf_discovery_url'),t:'text',d:'',hint:t('ch_id_discovery')},
+    {k:'in_audience',l:t('cf_allowed_audience'),t:'text',d:'',hint:t('ch_id_audience')},
+    {k:'in_clients',l:t('cf_allowed_clients'),t:'text',d:'',hint:t('ch_id_clients')},
+    {k:'outbound_auth',l:t('cf_id_outbound'),t:'select',o:['none','oauth','apikey'],d:'none',hint:t('ch_id_outbound')},
+    {k:'oauth_provider',l:t('cf_oauth_provider'),t:'select',o:['google','github','slack','microsoft','salesforce','custom'],d:'google',hint:t('ch_oauth_provider')},
+    {k:'provider_name',l:t('cf_provider_name'),t:'text',d:'my_provider'},
     {k:'client_id',l:'OAuth Client ID',t:'text',d:''},
     {k:'client_secret',l:'OAuth Client Secret',t:'text',d:''},
-    {k:'scopes',l:'授权范围 (scopes)',t:'text',d:'openid,profile'},
-    {k:'api_key',l:'API Key',t:'text',d:'',hint:'存入 Token Vault'},
-    {k:'duration',l:'Token 时长(秒)',t:'text',d:'300'}]},
+    {k:'scopes',l:t('cf_scopes'),t:'text',d:'openid,profile'},
+    {k:'api_key',l:t('cf_api_key'),t:'text',d:'',hint:t('ch_api_key')},
+    {k:'duration',l:t('cf_duration'),t:'text',d:'300'}]},
   observability:{label:'Observability',ic:'📊',ac:'var(--obs)',fields:[
-    {k:'enabled',l:'启用 OpenTelemetry',t:'select',o:['true','false'],d:'true'},
-    {k:'level',l:'日志级别',t:'select',o:['INFO','DEBUG','WARN'],d:'INFO'},
-    {k:'traces',l:'链路追踪',t:'select',o:['true','false'],d:'true'},
-    {k:'sampling',l:'采样率',t:'select',o:['1.0','0.5','0.1'],d:'1.0'},
-    {k:'dashboard',l:'CloudWatch 仪表盘',t:'select',o:['true','false'],d:'true'}]},
+    {k:'enabled',l:t('cf_obs_enabled'),t:'select',o:['true','false'],d:'true'},
+    {k:'level',l:t('cf_obs_level'),t:'select',o:['INFO','DEBUG','WARN'],d:'INFO'},
+    {k:'traces',l:t('cf_traces'),t:'select',o:['true','false'],d:'true'},
+    {k:'sampling',l:t('cf_sampling'),t:'select',o:['1.0','0.5','0.1'],d:'1.0'},
+    {k:'dashboard',l:t('cf_dashboard'),t:'select',o:['true','false'],d:'true'}]},
   policy:{label:'Policy',ic:'🛡️',ac:'var(--pol)',fields:[
-    {k:'engine',l:'策略引擎名称',t:'text',d:'my_engine',hint:'⚠ 引擎创建后改 mode/Gateway关联需删除引擎重建；Cedar 策略内容可原地更新'},
-    {k:'attach_gateway',l:'关联 Gateway',t:'select',o:['(画布中的 Gateway)','(不关联)'],d:'(画布中的 Gateway)',hint:'策略引擎作用于关联的 Gateway 的工具调用'},
-    {k:'mode',l:'执行模式',t:'select',o:['LOG_ONLY','ENFORCE'],d:'LOG_ONLY',hint:'LOG_ONLY: 仅记录; ENFORCE: 强制拦截'},
-    {k:'pname',l:'策略名称',t:'text',d:'my_policy'},
-    {k:'authoring',l:'策略编写方式',t:'select',o:['cedar','natural'],d:'cedar',hint:'cedar: 直接写 Cedar; natural: 自然语言生成'},
-    {k:'cedar',l:'Cedar 策略定义',t:'skillcode',d:'permit(\n  principal,\n  action,\n  resource\n);'},
-    {k:'nl_desc',l:'自然语言描述',t:'textarea',d:'允许所有已认证用户调用 web_search 工具'},
-    {k:'validation',l:'校验模式',t:'select',o:['IGNORE_ALL_FINDINGS','FAIL_ON_ANY_FINDINGS'],d:'IGNORE_ALL_FINDINGS'},
-    {k:'description',l:'描述',t:'text',d:'治理策略'}]},
-};
+    {k:'engine',l:t('cf_engine'),t:'text',d:'my_engine',hint:t('ch_engine')},
+    {k:'attach_gateway',l:t('cf_attach_gw'),t:'select',o:['(画布中的 Gateway)','(不关联)'],d:'(画布中的 Gateway)',hint:t('ch_attach_gw')},
+    {k:'mode',l:t('cf_pol_mode'),t:'select',o:['LOG_ONLY','ENFORCE'],d:'LOG_ONLY',hint:t('ch_pol_mode')},
+    {k:'pname',l:t('cf_pname'),t:'text',d:'my_policy'},
+    {k:'authoring',l:t('cf_authoring'),t:'select',o:['cedar','natural'],d:'cedar',hint:t('ch_authoring')},
+    {k:'cedar',l:t('cf_cedar'),t:'skillcode',d:'permit(\n  principal,\n  action,\n  resource\n);'},
+    {k:'nl_desc',l:t('cf_nl_desc'),t:'textarea',d:'允许所有已认证用户调用 web_search 工具'},
+    {k:'validation',l:t('cf_validation'),t:'select',o:['IGNORE_ALL_FINDINGS','FAIL_ON_ANY_FINDINGS'],d:'IGNORE_ALL_FINDINGS'},
+    {k:'description',l:t('cf_description'),t:'text',d:'治理策略'}]},
+};}
+let COMPONENTS=buildComponents();
 let nodes=[],sel=null,nid=0,tab='entry',fresh=new Set(),published=false,view='play',pgSrc='local',deployed=false;
 let sessions={},curName=null,lastCloudName=null;  // 每个场景/agent 独立 session：published/deployed/源模式/对话历史；lastCloudName=上次云端部署的名字（改名检测）
 let pgHist=[],pgSession=null;  // 会话内多轮记忆：完整对话历史 + 稳定 session id（随每次对话发给后端）
 
 const pal=document.getElementById('palette');
-[['核心组件',['runtime','memory','gateway','identity','observability','policy']],['内置工具',['codeinterp','browser']],['Gateway 工具目标',['mcp','skill']]].forEach(([title,types])=>{
+function buildPalette(){pal.innerHTML='';
+  [[t('cat_core'),['runtime','memory','gateway','identity','observability','policy']],[t('cat_tools'),['codeinterp','browser']],[t('cat_gw_targets'),['mcp','skill']]].forEach(([title,types])=>{
   const h=document.createElement('div');h.className='pal-sub';h.textContent=title;pal.appendChild(h);
   types.forEach(type=>{const c=COMPONENTS[type];const el=document.createElement('div');
     el.className='pal-item';el.draggable=true;el.style.setProperty('--ac',c.ac);
-    el.innerHTML=`<span class="chip">${c.ic}</span>${c.label}${c.required?' *':''}${c.multi?'<span class="tag">多个</span>':''}`;
-    el.addEventListener('dragstart',e=>e.dataTransfer.setData('type',type));pal.appendChild(el)})});
+    el.innerHTML=`<span class="chip">${c.ic}</span>${c.label}${c.required?' *':''}${c.multi?`<span class="tag">${t('tag_multi')}</span>`:''}`;
+    el.addEventListener('dragstart',e=>e.dataTransfer.setData('type',type));pal.appendChild(el)})});}
+buildPalette();
 
 const canvas=document.getElementById('canvas');
 /* ===== 视图变换（演示/缩放/平移）===== */
@@ -401,7 +406,7 @@ function fitView(boost){const ns=[...canvas.querySelectorAll('.node')],w=canvas.
   let s=Math.min((ww-pad*2)/bw,(wh-pad*2)/bh);s=Math.min(s*(boost||1),2.2);s=Math.max(s,.2);
   viewScale=s;viewX=(ww-bw*s)/2-minX*s;viewY=(wh-bh*s)/2-minY*s;applyView()}
 function toggleDemo(){demoMode=!demoMode;document.body.classList.toggle('demo',demoMode);
-  const b=document.getElementById('demoBtn');if(b)b.textContent=demoMode?'🖥 退出演示':'🖥 演示模式';
+  const b=document.getElementById('demoBtn');if(b)b.textContent='🖥 '+(demoMode?t('demo_exit'):t('demo_mode'));
   if(demoMode)setTimeout(()=>fitView(1.1),60);else resetView()}
 function toggleFull(){if(!document.fullscreenElement){(document.documentElement.requestFullscreen||document.documentElement.webkitRequestFullscreen).call(document.documentElement)}else{document.exitFullscreen&&document.exitFullscreen()}}
 canvas.parentElement.addEventListener('wheel',e=>{
@@ -429,8 +434,8 @@ canvas.addEventListener('mousedown',e=>{if(e.target===canvas||e.target.id==='edg
 
 function addNode(type,x,y){
   const c=COMPONENTS[type];
-  if(!c.multi&&nodes.some(n=>n.type===type)){toast('只能有一个 '+c.label);return}
-  if(c.parent==='gateway'&&!nodes.some(n=>n.type==='gateway')){toast('请先添加 Gateway — MCP/Skill 是它的工具目标');return}
+  if(!c.multi&&nodes.some(n=>n.type===type)){toast(t('msg_only_one',{label:c.label}));return}
+  if(c.parent==='gateway'&&!nodes.some(n=>n.type==='gateway')){toast(t('msg_need_gateway'));return}
   const cfg={};c.fields.forEach(f=>cfg[f.k]=f.d);
   if(c.multi){const k=c.fields[0].k;cfg[k]=cfg[k]+'_'+(nodes.filter(n=>n.type===type).length+1)}
   const n={id:++nid,type,x:Math.max(10,x),y:Math.max(10,y),cfg};
@@ -442,70 +447,70 @@ function isIncomplete(n){
   const c=n.cfg;
   switch(n.type){
     case'runtime':
-      if(!isNum(c.max_tokens,1,200000))return 'max_tokens 需为正整数';
-      if(!isNum(c.idle_timeout,60,28800))return 'idle_timeout 需 60-28800';
-      if(!isNum(c.max_lifetime,60,28800))return 'max_lifetime 需 60-28800';
-      if(c.env&&c.env.trim()&&!/^([A-Za-z_][A-Za-z0-9_]*=[^,]*)(,[A-Za-z_][A-Za-z0-9_]*=[^,]*)*$/.test(c.env.trim()))return '环境变量格式应为 KEY=val,KEY2=val2';
+      if(!isNum(c.max_tokens,1,200000))return t('err_max_tokens');
+      if(!isNum(c.idle_timeout,60,28800))return t('err_idle_timeout');
+      if(!isNum(c.max_lifetime,60,28800))return t('err_max_lifetime');
+      if(c.env&&c.env.trim()&&!/^([A-Za-z_][A-Za-z0-9_]*=[^,]*)(,[A-Za-z_][A-Za-z0-9_]*=[^,]*)*$/.test(c.env.trim()))return t('err_env_format');
       break;
     case'memory':
-      if(!c.mode||!c.mode.trim())return '需选择至少一种记忆模式';
-      if(!c.strategy||!c.strategy.trim())return '需选择至少一种记忆策略';
-      if(!isNum(c.top_k,1,100))return 'top-k 需为 1-100 整数';
-      if(!isNum(c.expiry,1,365))return '保留天数需为 1-365';
+      if(!c.mode||!c.mode.trim())return t('err_mem_mode');
+      if(!c.strategy||!c.strategy.trim())return t('err_mem_strategy');
+      if(!isNum(c.top_k,1,100))return t('err_top_k');
+      if(!isNum(c.expiry,1,365))return t('err_expiry');
       break;
     case'gateway':
-      if(!c.gw_name||!c.gw_name.trim())return '需填写 Gateway 名称';
-      if(/[^a-zA-Z0-9_-]/.test(c.gw_name))return 'Gateway 名称仅允许字母/数字/_/-';
-      if(c.inbound_auth==='JWT'&&(!c.discovery_url||!c.discovery_url.trim()))return 'JWT 认证需填写 OIDC Discovery URL';
+      if(!c.gw_name||!c.gw_name.trim())return t('err_gw_name_req');
+      if(/[^a-zA-Z0-9_-]/.test(c.gw_name))return t('err_gw_name_fmt');
+      if(c.inbound_auth==='JWT'&&(!c.discovery_url||!c.discovery_url.trim()))return t('err_jwt_discovery');
       break;
     case'mcp':
-      if(!c.name||!c.name.trim())return '需填写工具名称';
-      if(c.type==='web_search')break;  // 托管 connector，无需填目标资源
-      if(!c.endpoint||c.endpoint.includes('<')||!c.endpoint.trim())return '需填写目标资源';
-      if(c.type==='lambda'&&!/^arn:aws[a-z-]*:lambda:/.test(c.endpoint))return 'lambda 类型需填 Lambda ARN';
-      if((c.type==='openApiSchema'||c.type==='mcpServer')&&!/^https?:\/\//.test(c.endpoint))return c.type+' 类型需填 URL';
-      if(c.type==='openApiSchema'&&(!c.schema||!c.schema.trim()))return 'openApiSchema 需提供 OpenAPI 规范';
+      if(!c.name||!c.name.trim())return t('err_tool_name');
+      if(c.type==='web_search')break;
+      if(!c.endpoint||c.endpoint.includes('<')||!c.endpoint.trim())return t('err_tool_endpoint_req');
+      if(c.type==='lambda'&&!/^arn:aws[a-z-]*:lambda:/.test(c.endpoint))return t('err_tool_lambda');
+      if((c.type==='openApiSchema'||c.type==='mcpServer')&&!/^https?:\/\//.test(c.endpoint))return t('err_tool_url',{type:c.type});
+      if(c.type==='openApiSchema'&&(!c.schema||!c.schema.trim()))return t('err_tool_schema');
       break;
     case'skill':
-      if(!c.name||!c.name.trim())return '需填写技能名称';
-      if(c.source_type==='path'&&(!c.source||!c.source.trim()))return '需填写文件/目录路径';
-      if(c.source_type==='inline'&&(!c.code||!c.code.trim()))return '需填写技能代码';
-      if(c.source_type==='upload'&&!c._zipdata)return '需上传含 SKILL.md 的 zip 包';
+      if(!c.name||!c.name.trim())return t('err_skill_name');
+      if(c.source_type==='path'&&(!c.source||!c.source.trim()))return t('err_skill_path');
+      if(c.source_type==='inline'&&(!c.code||!c.code.trim()))return t('err_skill_code');
+      if(c.source_type==='upload'&&!c._zipdata)return t('err_skill_zip');
       break;
     case'identity':
-      if(c.inbound_auth==='JWT'&&(!c.in_discovery_url||!c.in_discovery_url.trim()))return '入站 JWT 需填写 OIDC Discovery URL';
+      if(c.inbound_auth==='JWT'&&(!c.in_discovery_url||!c.in_discovery_url.trim()))return t('err_id_jwt');
       if(c.outbound_auth==='oauth'){
-        if(!c.provider_name||c.provider_name==='my_provider')return '出站 OAuth 需配置凭证提供方名称';
-        if(!c.client_id||!c.client_id.trim())return '出站 OAuth 需填写 Client ID';
-        if(!c.client_secret||!c.client_secret.trim())return '出站 OAuth 需填写 Client Secret';
+        if(!c.provider_name||c.provider_name==='my_provider')return t('err_oauth_provider');
+        if(!c.client_id||!c.client_id.trim())return t('err_oauth_client');
+        if(!c.client_secret||!c.client_secret.trim())return t('err_oauth_secret');
       }
       if(c.outbound_auth==='apikey'){
-        if(!c.provider_name||c.provider_name==='my_provider')return '出站 API Key 需配置凭证提供方名称';
-        if(!c.api_key||!c.api_key.trim())return '出站 API Key 需填写 API Key';
+        if(!c.provider_name||c.provider_name==='my_provider')return t('err_apikey_provider');
+        if(!c.api_key||!c.api_key.trim())return t('err_apikey_val');
       }
-      if(!isNum(c.duration,60,43200))return 'Token 时长需 60-43200';
+      if(!isNum(c.duration,60,43200))return t('err_token_duration');
       break;
     case'policy':
-      if(!c.engine||!c.engine.trim())return '需填写策略引擎名称';
-      if(!c.pname||!c.pname.trim())return '需填写策略名称';
-      if(c.authoring==='cedar'&&(!c.cedar||!c.cedar.trim()))return '需填写 Cedar 策略定义';
-      if(c.authoring==='natural'&&(!c.nl_desc||!c.nl_desc.trim()))return '需填写自然语言策略描述';
+      if(!c.engine||!c.engine.trim())return t('err_engine');
+      if(!c.pname||!c.pname.trim())return t('err_pname');
+      if(c.authoring==='cedar'&&(!c.cedar||!c.cedar.trim()))return t('err_cedar');
+      if(c.authoring==='natural'&&(!c.nl_desc||!c.nl_desc.trim()))return t('err_nl_desc');
       break;
     case'codeinterp':case'browser':
-      if(!isNum(c.timeout,1,28800))return 'timeout 需为正整数';
+      if(!isNum(c.timeout,1,28800))return t('err_timeout');
       break;
     case'observability':
-      if(!isNum(c.sampling==='1.0'?1:c.sampling,0,1)&&c.sampling!=='1.0')return '采样率需 0-1';
+      if(!isNum(c.sampling==='1.0'?1:c.sampling,0,1)&&c.sampling!=='1.0')return t('err_sampling');
       break;
   }return null}
 
 function newAgent(){
-  if(nodes.length&&!confirm('当前画布将被清空，开始新的 Agent 配置？'))return;
+  if(nodes.length&&!confirm(t('msg_confirm_new_agent')))return;
   nodes=[];sel=null;nid=0;fresh.clear();published=false;deployed=false;
   const c=COMPONENTS['runtime'],cfg={};c.fields.forEach(f=>cfg[f.k]=f.d);
   const name='agent_'+(Date.now()%10000);cfg.name=name;
   nodes.push({id:++nid,type:'runtime',x:40,y:250,cfg});fresh.add(nid);
-  sel=nid;render();renderProps();toast('已创建新 Agent: '+name+' — 请配置组件')}
+  sel=nid;render();renderProps();toast(t('msg_new_agent_created',{name}))}
 
 function render(){
   document.getElementById('hint').style.display=nodes.length?'none':'block';
@@ -572,10 +577,10 @@ function renderProps(){const pop=document.getElementById('pop'),n=nodes.find(x=>
       if(f.k==='schema'&&t!=='openApiSchema')return '';  // schema 仅 openApiSchema
       if(f.k==='credentials'&&!(t==='openApiSchema'&&n.cfg.egress_auth!=='IAM'))return '';  // 凭证仅 openApiSchema+非IAM
       if(f.k==='endpoint'){
-        const map={lambda:['Lambda ARN','如 arn:aws:lambda:us-west-2:123456789012:function:my_fn'],
-          openApiSchema:['OpenAPI 服务 URL','如 https://api.example.com'],
-          mcpServer:['MCP Server URL','如 https://mcp.example.com/sse'],
-          smithyModel:['Smithy 模型 ARN','Smithy 模型资源 ARN']};
+        const map={lambda:['Lambda ARN',t('ch_lambda_ex')],
+          openApiSchema:['OpenAPI URL',t('ch_openapi_ex')],
+          mcpServer:['MCP Server URL',t('ch_mcp_ex')],
+          smithyModel:['Smithy ARN',t('ch_smithy_ex')]};
         if(map[t]){fl=map[t][0];fhint=map[t][1]}
       }
     }
@@ -600,12 +605,12 @@ function renderProps(){const pop=document.getElementById('pop'),n=nodes.find(x=>
     }
     if(f.t==='select')inp=`<select onchange="setCfg(${n.id},'${f.k}',this.value);renderProps()">${f.o.map(o=>`<option ${o===v?'selected':''}>${o}</option>`).join('')}</select>`;
     else if(f.t==='checks'){const vals=(v||'').split(',');inp=`<div class="checks">${f.o.map(o=>`<label class="chk"><input type="checkbox" ${vals.includes(o)?'checked':''} onchange="toggleCheck(${n.id},'${f.k}','${o}',this.checked)">${o}</label>`).join('')}</div>`}
-    else if(f.t==='skillcode'){const up=n.type==='mcp'?`<label class="upbtn">📎 上传文件<input type="file" accept=".json,.yaml,.yml,.txt" style="display:none" onchange="uploadSkill(${n.id},this,'${f.k}')"></label>`:'';inp=`${up}<textarea class="codearea" oninput="setCfg(${n.id},'${f.k}',this.value)">${(v||'').replace(/</g,'&lt;')}</textarea>`}
-    else if(f.t==='skillzip'){const zn=n.cfg._zipname;const status=zn?`<div class="ziphint ok">✓ 已载入: ${zn}（含 SKILL.md）</div>`:`<div class="ziphint">尚未上传</div>`;inp=`<label class="upbtn">📦 选择 .zip 压缩包<input type="file" accept=".zip" style="display:none" onchange="uploadSkillZip(${n.id},this)"></label>${status}`}
+    else if(f.t==='skillcode'){const up=n.type==='mcp'?`<label class="upbtn">📎 ${t('lbl_upload_file')}<input type="file" accept=".json,.yaml,.yml,.txt" style="display:none" onchange="uploadSkill(${n.id},this,'${f.k}')"></label>`:'';inp=`${up}<textarea class="codearea" oninput="setCfg(${n.id},'${f.k}',this.value)">${(v||'').replace(/</g,'&lt;')}</textarea>`}
+    else if(f.t==='skillzip'){const zn=n.cfg._zipname;const status=zn?`<div class="ziphint ok">✓ ${t('lbl_loaded')}: ${zn}</div>`:`<div class="ziphint">${t('lbl_not_uploaded')}</div>`;inp=`<label class="upbtn">📦 ${t('lbl_select_zip')}<input type="file" accept=".zip" style="display:none" onchange="uploadSkillZip(${n.id},this)"></label>${status}`}
     else if(f.t==='textarea')inp=`<textarea oninput="setCfg(${n.id},'${f.k}',this.value)">${v}</textarea>`;
     else inp=`<input value="${(''+v).replace(/"/g,'&quot;')}" oninput="setCfg(${n.id},'${f.k}',this.value)">`;
     let hint=fhint?`<div class="hint">${fhint}</div>`:'';
-    if(f.k==='name'&&/[^a-z0-9_]/i.test(v))hint=`<div class="hint warn">⚠ 仅允许字母 / 数字 / 下划线</div>`;
+    if(f.k==='name'&&/[^a-z0-9_]/i.test(v))hint=`<div class="hint warn">⚠ ${t('msg_name_format')}</div>`;
     return `<div class="field"><label>${fl}</label>${inp}${hint}</div>`}).join('');
   pop.hidden=false;positionPop(n)}
 function positionPop(n){const pop=document.getElementById('pop'),wrap=document.querySelector('.canvas-wrap');
@@ -617,30 +622,30 @@ function closePop(){sel=null;render();renderProps()}
 document.addEventListener('keydown',e=>{if(e.key==='Escape'&&sel){closePop()}});
 function setCfg(id,k,v){nodes.find(x=>x.id===id).cfg[k]=v;published=false;render()}
 function uploadSkill(id,input,key){const f=input.files[0];if(!f)return;
-  if(f.size>200*1024){toast('文件过大（>200KB）');return}
-  const r=new FileReader();r.onload=()=>{const n=nodes.find(x=>x.id===id);n.cfg[key||'code']=r.result;n.cfg._filename=f.name;published=false;render();renderProps();toast('已载入 '+f.name)};r.readAsText(f)}
+  if(f.size>200*1024){toast(t('msg_file_too_large'));return}
+  const r=new FileReader();r.onload=()=>{const n=nodes.find(x=>x.id===id);n.cfg[key||'code']=r.result;n.cfg._filename=f.name;published=false;render();renderProps();toast(t('msg_file_loaded',{name:f.name}))};r.readAsText(f)}
 function uploadSkillZip(id,input){const f=input.files[0];if(!f)return;
-  if(!f.name.toLowerCase().endsWith('.zip')){toast('请上传 .zip 压缩包');return}
-  if(f.size>5*1024*1024){toast('压缩包过大（>5MB）');return}
+  if(!f.name.toLowerCase().endsWith('.zip')){toast(t('msg_not_zip'));return}
+  if(f.size>5*1024*1024){toast(t('msg_zip_too_large'));return}
   const r=new FileReader();
   r.onload=()=>{
     const buf=new Uint8Array(r.result);
     // 校验 zip 内是否含 SKILL.md：zip 文件名以明文存储于本地/中央目录头，直接扫描字节
     let txt='';for(let i=0;i<buf.length;i++)txt+=String.fromCharCode(buf[i]);
-    if(!/\bSKILL\.md\b/i.test(txt)){toast('⚠ 压缩包内未找到 SKILL.md，已拒绝');return}
+    if(!/\bSKILL\.md\b/i.test(txt)){toast(t('msg_no_skill_md'));return}
     // 存 base64 供后端解码
     let bin='';for(let i=0;i<buf.length;i++)bin+=String.fromCharCode(buf[i]);
     const n=nodes.find(x=>x.id===id);n.cfg._zipdata=btoa(bin);n.cfg._zipname=f.name;
-    published=false;render();renderProps();toast('✓ 已载入 '+f.name+'（含 SKILL.md）')};
+    published=false;render();renderProps();toast(t('msg_zip_loaded',{name:f.name}))};
   r.readAsArrayBuffer(f)}
 function toggleCheck(id,k,val,checked){const n=nodes.find(x=>x.id===id);let vals=(n.cfg[k]||'').split(',').filter(Boolean);if(checked){if(!vals.includes(val))vals.push(val)}else{vals=vals.filter(v=>v!==val)}n.cfg[k]=vals.join(',');published=false;render()}
 
 function updateStat(rt){const p=document.getElementById('statPill'),tx=document.getElementById('statTxt');
-  if(!rt){p.classList.remove('ready');tx.textContent='空画布 — 需要 Runtime'}
+  if(!rt){p.classList.remove('ready');tx.textContent=t('stat_empty')}
   else{const inc=nodes.filter(n=>isIncomplete(n)).length,total=nodes.length,ok=total-inc;
     p.classList.toggle('ready',inc===0);
-    if(inc>0)tx.innerHTML=`<b>${ok}/${total}</b> 组件 · ⚠ ${inc} 待配置`;
-    else tx.innerHTML=`<b>${total}</b> 组件 · ${published?'已发布 🟢':'Deploy-ready'}`}}
+    if(inc>0)tx.innerHTML=`<b>${ok}/${total}</b> ${t('stat_components')} · ⚠ ${inc} ${t('stat_pending')}`;
+    else tx.innerHTML=`<b>${total}</b> ${t('stat_components')} · ${published?t('stat_published')+' 🟢':'Deploy-ready'}`}}
 
 // ---- Registry ----
 function renderRegistry(){
@@ -653,8 +658,8 @@ function renderRegistry(){
     return `<div class="reg-grp"${gi}>${title}</div>`+ns.map(n=>{const c=COMPONENTS[n.type];
       const nm=n.cfg.name||n.cfg.gw_name||n.cfg.engine||c.label;
       return `<div class="reg-row" style="--ac:${c.ac}${ind?';margin-left:16px':''}"><span class="chip">${c.ic}</span><div><div class="nm">${nm}</div><div class="ty">${c.label}</div></div>${st}</div>`}).join('')};
-  html=sec('核心组件',['runtime','memory','gateway','identity','observability','policy'])+sec('内置工具',['codeinterp','browser'])+sec('↳ Gateway 工具目标',['mcp','skill'],true);
-  list.innerHTML=html||'<div class="empty">尚无注册项<br>拖入组件后将在此显示</div>'}
+  html=sec(t('reg_core'),['runtime','memory','gateway','identity','observability','policy'])+sec(t('reg_builtin'),['codeinterp','browser'])+sec(t('reg_gw_targets'),['mcp','skill'],true);
+  list.innerHTML=html||`<div class="empty">${t('reg_empty')}</div>`}
 
 // ---- 产物生成 ----
 const TABS={entry:'agentcore_entry.py',deploy:'deploy.sh',registry:'registry.json',policy:'iam-policy.json',req:'requirements.txt'};
@@ -667,7 +672,7 @@ function _fp(o){return _hash(JSON.stringify(o))}
 
 function gen(){
   const rt=nodes.find(n=>n.type==='runtime');
-  if(!rt)return{entry:'# 请先拖入一个 Runtime 组件',deploy:'# 请先拖入一个 Runtime',registry:'{}',policy:'{}',req:''};
+  if(!rt)return{entry:'# '+t('msg_no_runtime'),deploy:'# '+t('msg_no_runtime'),registry:'{}',policy:'{}',req:''};
   const c=rt.cfg,region=c.region,acct='<ACCOUNT_ID>';
   // 仅纳入配置完整的组件；未配置完整的自动跳过、不发布
   const ok=n=>n&&!isIncomplete(n);
@@ -1087,15 +1092,13 @@ function collectWarnings(){
   nodes.forEach(n=>{const inc=isIncomplete(n);if(inc){const c=COMPONENTS[n.type];const nm=n.cfg.name||n.cfg.gw_name||n.cfg.engine||c.label;w.push(`${c.ic} ${c.label} 「${nm}」: ${inc}`)}});
   // 名称查重 — MCP
   const mcpNames=nodes.filter(n=>n.type==='mcp').map(n=>(n.cfg.name||'').trim());
-  mcpNames.forEach((nm,i)=>{if(nm&&mcpNames.indexOf(nm)!==i&&mcpNames.indexOf(nm)<i)w.push(`🧰 MCP 工具名称重复: 「${nm}」`)});
-  // 名称查重 — Skill
+  mcpNames.forEach((nm,i)=>{if(nm&&mcpNames.indexOf(nm)!==i&&mcpNames.indexOf(nm)<i)w.push(t('msg_dup_mcp',{name:nm}))});
   const skNames=nodes.filter(n=>n.type==='skill').map(n=>(n.cfg.name||'').trim());
-  skNames.forEach((nm,i)=>{if(nm&&skNames.indexOf(nm)!==i&&skNames.indexOf(nm)<i)w.push(`✨ Skill 名称重复: 「${nm}」`)});
-  // MCP/Skill 但缺 Gateway
-  if((nodes.some(n=>n.type==='mcp')||nodes.some(n=>n.type==='skill'))&&!nodes.some(n=>n.type==='gateway'))w.push('🔌 存在 MCP/Skill 但缺少 Gateway（工具目标需挂在 Gateway 下）');
+  skNames.forEach((nm,i)=>{if(nm&&skNames.indexOf(nm)!==i&&skNames.indexOf(nm)<i)w.push(t('msg_dup_skill',{name:nm}))});
+  if((nodes.some(n=>n.type==='mcp')||nodes.some(n=>n.type==='skill'))&&!nodes.some(n=>n.type==='gateway'))w.push(t('msg_mcp_no_gw'));
   return [...new Set(w)]}
-function publish(){const rt=nodes.find(n=>n.type==='runtime');if(!rt){toast('请先添加 Runtime');return}
-  if(/[^a-z0-9_]/i.test(rt.cfg.name)){toast('Agent 名称仅允许字母/数字/下划线');return}
+function publish(){const rt=nodes.find(n=>n.type==='runtime');if(!rt){toast(t('msg_no_runtime'));return}
+  if(/[^a-z0-9_]/i.test(rt.cfg.name)){toast(t('msg_name_format'));return}
   curName=rt.cfg.name;  // session 按实际发布的 agent 名对齐（处理改名）
   const order=['runtime','memory','gateway','mcp','skill','codeinterp','browser','identity','observability','policy'];
   const rtInc=isIncomplete(rt);
@@ -1104,46 +1107,46 @@ function publish(){const rt=nodes.find(n=>n.type==='runtime');if(!rt){toast('请
   // 建议项（非阻止）：重名、缺 Gateway
   const adv=[];
   const mcpN=nodes.filter(n=>n.type==='mcp').map(n=>(n.cfg.name||'').trim());
-  mcpN.forEach((nm,i)=>{if(nm&&mcpN.indexOf(nm)<i)adv.push(`🧰 MCP 工具名称重复:「${nm}」`)});
+  mcpN.forEach((nm,i)=>{if(nm&&mcpN.indexOf(nm)<i)adv.push(t('msg_dup_mcp',{name:nm}))});
   const skN=nodes.filter(n=>n.type==='skill').map(n=>(n.cfg.name||'').trim());
-  skN.forEach((nm,i)=>{if(nm&&skN.indexOf(nm)<i)adv.push(`✨ Skill 名称重复:「${nm}」`)});
-  if((nodes.some(n=>n.type==='mcp')||nodes.some(n=>n.type==='skill'))&&!nodes.some(n=>n.type==='gateway'))adv.push('🔌 存在 MCP/Skill 但缺少 Gateway（工具目标需挂在 Gateway 下）');
+  skN.forEach((nm,i)=>{if(nm&&skN.indexOf(nm)<i)adv.push(t('msg_dup_skill',{name:nm}))});
+  if((nodes.some(n=>n.type==='mcp')||nodes.some(n=>n.type==='skill'))&&!nodes.some(n=>n.type==='gateway'))adv.push(t('msg_mcp_no_gw'));
   let topHtml='';
-  if(rtInc)topHtml+=`<div class="errbox"><div class="errhd">⛔ Runtime 未配置完整，无法发布：${rtInc}</div></div>`;
-  if(skip.length)topHtml+=`<div class="skipbox"><div class="skiphd">⏭ ${skip.length} 个组件未配置完整，将被跳过（不发布），其余照常发布</div>${skip.map(x=>`<div class="warnitem">• ${x}</div>`).join('')}</div>`;
-  if(adv.length)topHtml+=`<div class="warnbox"><div class="warnhd">⚠ ${adv.length} 项建议（不阻止发布）</div>${adv.map(x=>`<div class="warnitem">• ${x}</div>`).join('')}</div>`;
-  if(!rtInc&&!skip.length&&!adv.length)topHtml=`<div class="okbox">✓ 所有组件配置完整</div>`;
+  if(rtInc)topHtml+=`<div class="errbox"><div class="errhd">${t('msg_runtime_incomplete')}: ${rtInc}</div></div>`;
+  if(skip.length)topHtml+=`<div class="skipbox"><div class="skiphd">⏭ ${t('review_skip_hd',{n:skip.length})}</div>${skip.map(x=>`<div class="warnitem">• ${x}</div>`).join('')}</div>`;
+  if(adv.length)topHtml+=`<div class="warnbox"><div class="warnhd">⚠ ${t('review_warn_hd',{n:adv.length})}</div>${adv.map(x=>`<div class="warnitem">• ${x}</div>`).join('')}</div>`;
+  if(!rtInc&&!skip.length&&!adv.length)topHtml=`<div class="okbox">${t('review_ok')}</div>`;
   document.getElementById('reviewBody').innerHTML=topHtml+[...nodes].sort((a,b)=>order.indexOf(a.type)-order.indexOf(b.type)).map(n=>{const c=COMPONENTS[n.type];const ind=c.parent==='gateway';const inc=isIncomplete(n);
     const kv=c.fields.filter(f=>!(n.type==='skill'&&((f.k==='source'&&n.cfg.source_type!=='path')||(f.k==='code'&&n.cfg.source_type==='path')))).map(f=>{let val=(''+(n.cfg[f.k]??'')).trim();if(f.k==='code'&&val.length>60)val=val.slice(0,60)+'…';return `${f.l}: <b>${val||'—'}</b>`}).join('<br>');
-    return `<div class="rv"${ind?' style="margin-left:20px"':''}${inc?' data-inc="1"':''}><div class="rv-h" style="--ac:${c.ac}"><span class="chip">${c.ic}</span>${ind?'↳ ':''}${c.label}${inc?(n.type==='runtime'?' <span class="incflag">⛔</span>':' <span class="incflag">⏭ 跳过</span>'):''}</div><div class="rv-kv">${kv}</div></div>`}).join('');
+    return `<div class="rv"${ind?' style="margin-left:20px"':''}${inc?' data-inc="1"':''}><div class="rv-h" style="--ac:${c.ac}"><span class="chip">${c.ic}</span>${ind?'↳ ':''}${c.label}${inc?(n.type==='runtime'?' <span class="incflag">⛔</span>':`<span class="incflag">${t('skip_label')}</span>`):''}</div><div class="rv-kv">${kv}</div></div>`}).join('');
   const btn=document.getElementById('pubConfirmBtn');
-  if(rtInc){btn.disabled=true;btn.textContent='⛔ 请先修复 Runtime';btn.classList.add('disabled')}
-  else{btn.disabled=false;btn.textContent=skip.length?`确认发布（跳过 ${skip.length} 个未配置）`:'确认发布';btn.classList.remove('disabled')}
+  if(rtInc){btn.disabled=true;btn.textContent=t('btn_fix_runtime2');btn.classList.add('disabled')}
+  else{btn.disabled=false;btn.textContent=skip.length?t('confirm_publish_skip',{n:skip.length}):t('confirm_publish_btn');btn.classList.remove('disabled')}
   document.getElementById('modal').classList.add('show')}
 function closeModal(){document.getElementById('modal').classList.remove('show')}
-async function doPublish(){const rt0=nodes.find(n=>n.type==='runtime');if(rt0&&isIncomplete(rt0)){toast('⛔ Runtime 未配置完整，请先修复');return}
+async function doPublish(){const rt0=nodes.find(n=>n.type==='runtime');if(rt0&&isIncomplete(rt0)){toast(t('msg_runtime_incomplete'));return}
   const skipped=nodes.filter(n=>isIncomplete(n)&&n.type!=='runtime');
   closeModal();const rt=nodes.find(n=>n.type==='runtime');
-  toast('正在发布…');let pubNotice=null,zipWarn=null,cloudReady=null;try{const r=await fetch('/api/publish',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload())});
-    if(!r.ok)throw 0;const j=await r.json().catch(()=>({}));pubNotice=j.region_notice;zipWarn=(j.zip_warn||[]).length?j.zip_warn:null;if(j.cloud_ready)cloudReady={agent:j.cloud_agent,region:j.cloud_region};published=true;toast('✅ 已发布到本地工作区')}catch(e){published=true;toast('⚠ 后端未启动，已切换离线模拟')}
-  render();document.getElementById('pgMode').textContent='已发布';switchView('play');
-  if(!document.getElementById('msgs').children.length)addMsg('sys','✅ Agent「'+rt.cfg.name+'」已发布，可以开始对话');
-  if(skipped.length)addMsg('sys','⏭ 已跳过 '+skipped.length+' 个未配置组件（不发布）：'+skipped.map(n=>{const c=COMPONENTS[n.type];return c.ic+(n.cfg.name||n.cfg.gw_name||n.cfg.engine||c.label)}).join('、'));
+  toast(t('msg_publishing'));let pubNotice=null,zipWarn=null,cloudReady=null;try{const r=await fetch('/api/publish',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload())});
+    if(!r.ok)throw 0;const j=await r.json().catch(()=>({}));pubNotice=j.region_notice;zipWarn=(j.zip_warn||[]).length?j.zip_warn:null;if(j.cloud_ready)cloudReady={agent:j.cloud_agent,region:j.cloud_region};published=true;toast(t('msg_published_ok'))}catch(e){published=true;toast(t('msg_backend_offline'))}
+  render();document.getElementById('pgMode').textContent=t('msg_status_published');switchView('play');
+  if(!document.getElementById('msgs').children.length)addMsg('sys',t('msg_pg_agent_published',{name:rt.cfg.name}));
+  if(skipped.length)addMsg('sys',t('msg_pg_skipped',{n:skipped.length,list:skipped.map(n=>{const c=COMPONENTS[n.type];return c.ic+(n.cfg.name||n.cfg.gw_name||n.cfg.engine||c.label)}).join(', ')}));
   if(pubNotice)addMsg('sys','🔁 '+pubNotice);
   if(zipWarn)zipWarn.forEach(w=>addMsg('sys','⚠ '+w));
-  if(cloudReady){deployed=true;document.getElementById('srcCloud').classList.add('avail');addMsg('sys',`☁️ 检测到云端已就绪的 ${cloudReady.agent}（${cloudReady.region}）— 可直接切「AWS 云端」与托底环境互动；改配置后重新部署会原地更新（重建期间旧版本继续服务）`)}}
+  if(cloudReady){deployed=true;document.getElementById('srcCloud').classList.add('avail');addMsg('sys',t('msg_pg_cloud_ready',{agent:cloudReady.agent,region:cloudReady.region}))}}
 async function autoPublish(){const rt=nodes.find(n=>n.type==='runtime');
-  if(!rt){toast('请先添加 Runtime');switchView('cfg');return false}
-  if(/[^a-z0-9_]/i.test(rt.cfg.name)){toast('Agent 名称仅允许字母/数字/下划线');switchView('cfg');return false}
-  if(isIncomplete(rt)){toast('⛔ Runtime 未配置完整，无法发布');switchView('cfg');return false}
+  if(!rt){toast(t('msg_no_runtime'));switchView('cfg');return false}
+  if(/[^a-z0-9_]/i.test(rt.cfg.name)){toast(t('msg_name_format'));switchView('cfg');return false}
+  if(isIncomplete(rt)){toast(t('msg_runtime_incomplete'));switchView('cfg');return false}
   curName=rt.cfg.name;
-  try{const r=await fetch('/api/publish',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload())});if(!r.ok)throw 0;await r.json().catch(()=>({}));published=true;toast('已自动发布到本地')}
-  catch(e){published=true;toast('⚠ 后端未启动，按离线模拟')}
-  document.getElementById('pgMode').textContent='已发布';render();return true}
+  try{const r=await fetch('/api/publish',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload())});if(!r.ok)throw 0;await r.json().catch(()=>({}));published=true;toast(t('msg_auto_published'))}
+  catch(e){published=true;toast(t('msg_backend_offline2'))}
+  document.getElementById('pgMode').textContent=t('msg_status_published');render();return true}
 async function sendMsg(){const inp=document.getElementById('pgIn'),txt=inp.value.trim();if(!txt)return;
   const cloud=pgSrc==='cloud';
-  if(!published){if(cloud){toast('请先「发布到云端」');return}const ok=await autoPublish();if(!ok)return}
-  if(cloud&&!deployed){toast('请先「发布到云端」');return}
+  if(!published){if(cloud){toast(t('msg_not_deployed'));return}const ok=await autoPublish();if(!ok)return}
+  if(cloud&&!deployed){toast(t('msg_not_deployed'));return}
   inp.value='';addMsg('u',txt);
   let res,mode;try{const rtNode=nodes.find(n=>n.type==='runtime');const r=await fetch(cloud?'/api/invoke-cloud':'/api/invoke',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({name:agentName(),prompt:txt,region:rtNode?rtNode.cfg.region:undefined,system_prompt:rtNode?rtNode.cfg.system_prompt:undefined,history:pgHist,session:pgSession})});
     const j=await r.json();res=j.result;mode=j.mode}catch(e){if(cloud){res='云端调用失败（后端未启动）';mode='error'}else{res=localReply(txt);mode='mock'}}
@@ -1151,24 +1154,24 @@ async function sendMsg(){const inp=document.getElementById('pgIn'),txt=inp.value
   if(res&&(mode==='real'||mode==='cloud'))pgHist.push({role:'user',content:txt},{role:'assistant',content:res})}
 function localReply(p){const rt=nodes.find(n=>n.type==='runtime');const sp=rt?rt.cfg.system_prompt:'';
   const tl=nodes.filter(n=>n.type==='mcp').map(n=>n.cfg.name),sk=nodes.filter(n=>n.type==='skill').map(n=>n.cfg.name);
-  const ex=(tl.length||sk.length)?` （已注册工具: ${tl.join(', ')||'无'}; 技能: ${sk.join(', ')||'无'}）`:'';
-  return `${sp?'依据设定「'+sp+'」，':''}针对「${p}」给出演示回复。${ex}`}
+  const ex=(tl.length||sk.length)?t('mock_tools_hint',{tools:tl.join(', ')||t('none'),skills:sk.join(', ')||t('none')}):'';
+  return t('mock_reply',{sp:sp?t('mock_sys_prefix',{sp})+', ':'',p,ex})}
 function setMode(m){const e=document.getElementById('pgMode');
-  const map={real:['real','● 实时模型'],cloud:['real','● AWS 云端'],mock:['mock','● 本地模拟'],'cloud-error':['mock','● 云端报错'],error:['mock','● 调用失败']};
+  const map={real:['real',t('mode_live')],cloud:['real',t('mode_cloud')],mock:['mock',t('mode_local')],'cloud-error':['mock',t('mode_cloud_err')],error:['mock',t('mode_failed')]};
   const v=map[m]||['mock','●'];e.className='mode '+v[0];e.textContent=v[1]}
-function setSrc(s){if(s==='cloud'&&!deployed){toast('请先点击「发布到云端」');return}
+function setSrc(s){if(s==='cloud'&&!deployed){toast(t('msg_not_deployed'));return}
   pgSrc=s;document.getElementById('srcLocal').classList.toggle('on',s==='local');document.getElementById('srcCloud').classList.toggle('on',s==='cloud')}
 function addMsg(t,txt){const d=document.createElement('div');d.className='msg '+t;d.textContent=(''+txt).replace(/\\r\\n/g,'\n').replace(/\\n/g,'\n').replace(/\\t/g,'\t');
   const m=document.getElementById('msgs');m.appendChild(d);m.scrollTop=m.scrollHeight}
 let curDeployLog=null;
 let curDeployHd=null,deployTimer=null,deployStart=0;
 function newDeployLog(){const m=document.getElementById('msgs');const d=document.createElement('div');d.className='msg sys deploylog';
-  const hd=document.createElement('div');hd.className='dl-hd';hd.textContent='☁️ 云端部署日志（实时）';
+  const hd=document.createElement('div');hd.className='dl-hd';hd.textContent=t('msg_deploy_log_hd');
   const pre=document.createElement('pre');d.appendChild(hd);d.appendChild(pre);m.appendChild(d);curDeployLog=pre;curDeployHd=hd;m.scrollTop=m.scrollHeight}
 function startDeployHeartbeat(){deployStart=Date.now();clearInterval(deployTimer);
   deployTimer=setInterval(()=>{if(!curDeployHd)return;const s=Math.floor((Date.now()-deployStart)/1000),mm=Math.floor(s/60),ss=s%60;
-    curDeployHd.textContent=`☁️ 部署进行中… ⏳ 已用 ${mm}m ${ss}s（构建依赖较慢，请耐心等待）`},1000)}
-function stopDeployHeartbeat(label){clearInterval(deployTimer);deployTimer=null;if(curDeployHd){const s=Math.floor((Date.now()-deployStart)/1000),mm=Math.floor(s/60),ss=s%60;curDeployHd.textContent=`${label||'☁️ 云端部署日志'} · 用时 ${mm}m ${ss}s`}}
+    curDeployHd.textContent=t('deploy_heartbeat',{mm,ss})},1000)}
+function stopDeployHeartbeat(label){clearInterval(deployTimer);deployTimer=null;if(curDeployHd){const s=Math.floor((Date.now()-deployStart)/1000),mm=Math.floor(s/60),ss=s%60;curDeployHd.textContent=`${label||t('deploy_done_hd')} · ${mm}m ${ss}s`}}
 function appendDeployLine(t){if(!curDeployLog)newDeployLog();
   const isStep=/^(>>>|#\s|✅|⚠|☁️)/.test(t);const span=document.createElement('span');
   if(isStep)span.className='dl-step';span.textContent=t+'\n';curDeployLog.appendChild(span);
@@ -1189,7 +1192,7 @@ function buildDeployPlan(){
 let traceStages=[],traceEl=null;
 function newDeployTrace(){traceStages=buildDeployPlan();const m=document.getElementById('msgs');
   const d=document.createElement('div');d.className='msg sys deploytrace';
-  d.innerHTML='<div class="dt-hd">🚀 发布管线（'+traceStages.length+' 个组件）</div><div class="dt-row">'+traceStages.map((s,i)=>
+  d.innerHTML='<div class="dt-hd">'+t('deploy_trace_hd',{n:traceStages.length})+'</div><div class="dt-row">'+traceStages.map((s,i)=>
     `<div class="dt-stage pending" data-id="${s.id}"><span class="dt-ic">${s.icon}</span><span class="dt-lb">${s.label}</span><span class="dt-ck">✓</span></div>`+
     (i<traceStages.length-1?'<span class="dt-conn"></span>':'')).join('')+'</div>';
   m.appendChild(d);traceEl=d;m.scrollTop=m.scrollHeight}
@@ -1201,26 +1204,25 @@ function skipTrace(id){if(!traceEl)return;const el=traceEl.querySelector(`.dt-st
   if(el){el.className='dt-stage skip';const ck=el.querySelector('.dt-ck');if(ck)ck.textContent='↷'}}
 function completeTrace(){if(!traceEl)return;traceStages.forEach(s=>{const el=traceEl.querySelector(`.dt-stage[data-id="${CSS.escape(s.id)}"]`);if(el&&!el.classList.contains('skip'))el.className='dt-stage done'});
   const skn=traceEl.querySelectorAll('.dt-stage.skip').length;
-  const hd=traceEl.querySelector('.dt-hd');if(hd)hd.textContent='🎉 发布完成（'+traceStages.length+' 个组件'+(skn?'，'+skn+' 个未变化已跳过':'')+'）'}
+  const hd=traceEl.querySelector('.dt-hd');if(hd)hd.textContent=t('deploy_trace_done',{n:traceStages.length,skipped:skn?t('deploy_trace_skipped',{n:skn}):''})}
 function isHosted(){const h=location.hostname;return !(h==='127.0.0.1'||h==='localhost'||h==='0.0.0.0')}
-async function deployCloud(){const rt=nodes.find(n=>n.type==='runtime');if(!rt){toast('请先添加 Runtime');return}
-  if(!published){toast('请先「本地发布」并在 Playground 验证后再部署到云端');switchView('cfg');return}
-  if(isIncomplete(rt)){toast('⛔ Runtime 未配置完整，无法部署');switchView('cfg');return}
+async function deployCloud(){const rt=nodes.find(n=>n.type==='runtime');if(!rt){toast(t('msg_no_runtime'));return}
+  if(!published){toast(t('msg_local_publish_first'));switchView('cfg');return}
+  if(isIncomplete(rt)){toast(t('msg_runtime_incomplete2'));switchView('cfg');return}
   const skipped=nodes.filter(n=>isIncomplete(n)&&n.type!=='runtime');
   const adv=collectWarnings().filter(w=>!nodes.some(n=>isIncomplete(n)&&w.includes(isIncomplete(n))));
-  let pre='真实部署到云端？需 uv + agentcore toolkit + 凭证，耗时数分钟并产生费用。';
-  if(isHosted())pre='⚠ 当前为托管环境（如 App Runner）：真实部署资源开销大、可能受限或中断。建议真实部署在本地 Studio 执行；托底演示可直接用「AWS 云端」已就绪 Agent。\n\n仍要在此尝试部署吗？\n\n'+pre;
-  if(skipped.length)pre='⏭ 将跳过 '+skipped.length+' 个未配置组件（不部署）：\n'+skipped.map(n=>{const c=COMPONENTS[n.type];return c.ic+(n.cfg.name||n.cfg.gw_name||n.cfg.engine||c.label)}).join('、')+'\n\n'+pre;
-  if(adv.length)pre='⚠ 建议（不阻止）：\n'+adv.join('\n')+'\n\n'+pre;
+  let pre=t('msg_confirm_deploy');
+  if(isHosted())pre=t('msg_deploy_hosted')+'\n\n'+pre;
+  if(skipped.length)pre='⏭ '+t('msg_deploy_skip_n',{n:skipped.length})+':\n'+skipped.map(n=>{const c=COMPONENTS[n.type];return c.ic+(n.cfg.name||n.cfg.gw_name||n.cfg.engine||c.label)}).join(', ')+'\n\n'+pre;
+  if(adv.length)pre='⚠ '+adv.join('\n')+'\n\n'+pre;
   if(!confirm(pre))return;
-  // 改名检测：AgentCore 不能重命名 → 新建 + 旧的成孤儿
   const curNm=rt.cfg.name; let delOld=null;
   if(lastCloudName && lastCloudName!==curNm){
-    if(!confirm('⚠ Runtime 名称由「'+lastCloudName+'」改为「'+curNm+'」。\nAgentCore 不支持重命名：这将【新建】一个「'+curNm+'」（全量部署），原「'+lastCloudName+'」仍保留在云端（继续计费）。\n\n继续部署新的「'+curNm+'」吗？（取消则中止）'))return;
-    if(confirm('是否在部署成功后【删除】旧的云端 Runtime「'+lastCloudName+'」？\n\n确定 = 删除旧的；取消 = 保留旧的（可稍后手动处理）。\n注：其关联 Memory 不会被删除。'))delOld=lastCloudName;
+    if(!confirm(t('confirm_rename_deploy',{old:lastCloudName,new:curNm})))return;
+    if(confirm(t('confirm_delete_old',{name:lastCloudName})))delOld=lastCloudName;
   }
-  toast('☁️ 正在部署到云端…（数分钟）');switchView('play');addMsg('sys','☁️ 开始真实部署到云端…实时日志如下，请耐心等待 2-5 分钟');
-  if(skipped.length)addMsg('sys','⏭ 本次跳过 '+skipped.length+' 个未配置组件（不部署）');
+  toast(t('msg_deploying'));switchView('play');addMsg('sys',t('msg_deploy_start'));
+  if(skipped.length)addMsg('sys',t('msg_deploy_skip_n',{n:skipped.length}));
   newDeployTrace();newDeployLog();startDeployHeartbeat();
   try{
     const r=await fetch('/api/deploy',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({name:rt.cfg.name})});
@@ -1237,21 +1239,21 @@ async function deployCloud(){const rt=nodes.find(n=>n.type==='runtime');if(!rt){
       if(s.done){gotDone=true;ok=s.ok;finalLog=s.log||'';break}
     }
     if(!gotDone)throw new Error('部署任务异常结束');
-    if(ok){stopDeployHeartbeat('✅ 云端部署完成');completeTrace();deployed=true;setSrc('cloud');addMsg('sys','🎉 全部发布完成！已切换「AWS 云端」，发消息即可验证云端 runtime');
-      if(delOld){try{const dr=await fetch('/api/delete-runtime',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({name:delOld,region:rt.cfg.region})});const dj=await dr.json();addMsg('sys',dj.ok?('🗑 已删除旧 Runtime「'+delOld+'」（其 Memory 仍保留）'):('⚠ 删除旧 Runtime「'+delOld+'」失败：'+(dj.error||'')))}catch(e){addMsg('sys','⚠ 删除旧 Runtime 请求失败：'+e.message)}}
+    if(ok){stopDeployHeartbeat('✅ '+t('deploy_done_hd'));completeTrace();deployed=true;setSrc('cloud');addMsg('sys',t('msg_deploy_ok'));
+      if(delOld){try{const dr=await fetch('/api/delete-runtime',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({name:delOld,region:rt.cfg.region})});const dj=await dr.json();addMsg('sys',dj.ok?t('msg_delete_rt_ok',{name:delOld}):t('msg_delete_rt_fail',{name:delOld,err:dj.error||''}))}catch(e){addMsg('sys',t('msg_delete_rt_fail',{name:delOld,err:e.message}))}}
       lastCloudName=curNm}
-    else{stopDeployHeartbeat('⚠ 部署未完全成功');const tail=(finalLog||'').split('\n').slice(-12).join('\n');addMsg('sys','⚠ 部署未完全成功，日志末尾：\n'+tail)}}catch(e){stopDeployHeartbeat('⚠ 部署中断');
-    if(e.name==='AbortError')addMsg('sys','⚠ 请求超时（15分钟），请刷新后检查云端状态');
-    else{addMsg('sys','⚠ 云端部署连接中断：'+e.message);
-      if(isHosted())addMsg('sys','💡 当前是托管环境（App Runner）。真实「发布到云端」资源开销大、易受限，建议在本地 Studio（python3 server.py）执行真实部署；本演示环境可直接用已就绪的「AWS 云端」托底 Agent 对话。');
-      else addMsg('sys','部署可能仍在后台跑完，可稍后在 AWS 控制台或「AWS 云端」验证 runtime 是否 READY。');}}}
+    else{stopDeployHeartbeat('⚠ '+t('msg_pg_deploy_failed'));const tail=(finalLog||'').split('\n').slice(-12).join('\n');addMsg('sys',t('msg_deploy_partial_log',{log:tail}))}}catch(e){stopDeployHeartbeat('⚠ '+t('msg_pg_deploy_aborted'));
+    if(e.name==='AbortError')addMsg('sys',t('msg_deploy_timeout'));
+    else{addMsg('sys','⚠ '+e.message);
+      if(isHosted())addMsg('sys',t('msg_deploy_hosted'));
+      else addMsg('sys',t('msg_deploy_background'));}}}
 
 // ---- 导出 ----
 function curFile(){const o=gen();return{name:TABS[tab],text:o[tab]}}
 function dl(name,text){const b=new Blob([text],{type:'text/plain'}),a=document.createElement('a');a.href=URL.createObjectURL(b);a.download=name;a.click();URL.revokeObjectURL(a.href)}
-function downloadCurrent(){const f=curFile();dl(f.name,f.text);toast('已下载 '+f.name)}
-function copyCurrent(){navigator.clipboard.writeText(curFile().text);toast('已复制')}
-function clearCanvas(){if(confirm('清空画布?')){nodes=[];sel=null;published=false;lastCloudName=null;render();renderProps()}}
+function downloadCurrent(){const f=curFile();dl(f.name,f.text);toast(t('msg_downloaded',{name:f.name}))}
+function copyCurrent(){navigator.clipboard.writeText(curFile().text);toast(t('msg_copied'))}
+function clearCanvas(){if(confirm(t('msg_confirm_clear'))){nodes=[];sel=null;published=false;lastCloudName=null;render();renderProps()}}
 const SCENARIOS={
   minimal:{label:'极简对话 Agent',desc:'Runtime + Memory + Browser + Gateway(Web Search)，可对话+联网搜索+网页访问',nodes:[['runtime',40,250,{name:'chat_agent',region:'us-east-1',system_prompt:'你是一个友好的对话助手。需要最新或实时信息时调用 web_search 工具联网搜索；需要打开某个具体网页时调用 browser 工具。'}],['memory',300,60],['browser',300,210,{network:'SANDBOX'}],['gateway',300,360,{gw_name:'chat_gw'}],['mcp',560,480,{name:'web_search',type:'web_search',description:'AgentCore 托管联网搜索，返回正文摘要与来源链接'}]]},
   support:{label:'客服 Agent（带工具）',desc:'Runtime + Memory + Identity + Gateway + 真实工具 order_lookup',nodes:[['runtime',40,250,{name:'support_agent',region:'us-east-1',system_prompt:'你是一个专业的客服助手。当用户询问订单时，调用 order_lookup 工具（参数 order_id）查询，并用简洁中文汇报订单状态、物流与预计送达时间。'}],['memory',320,40],['identity',320,150],['gateway',320,320,{gw_name:'support_gw'}],['mcp',610,300,{name:'order_lookup',type:'lambda',endpoint:'arn:aws:lambda:us-east-1:527165314912:function:order_lookup',description:'按订单号查询订单状态/物流/金额'}]]},
@@ -1276,7 +1278,7 @@ function applySession(name,label){
   else{published=false;deployed=false;pgSrc='local';lastCloudName=null;m.innerHTML='';
     pgHist=[];pgSession=name+'-'+Date.now().toString(36);
     document.getElementById('srcCloud').classList.remove('avail');
-    addMsg('sys','🆕 场景「'+(label||name)+'」：先在「本地」对话测试，OK 后再「发布到云端」。每个场景需各自发布；云端对话用的是该场景自己部署的 Agent。')}
+    addMsg('sys',t('msg_scenario_hint',{label:label||name}))}
   syncSrcPills()}
 function loadScenario(key){const sc=SCENARIOS[key]||SCENARIOS.full;
   snapshotSession();
@@ -1288,10 +1290,83 @@ function loadScenario(key){const sc=SCENARIOS[key]||SCENARIOS.full;
   sel=null;render();[...canvas.querySelectorAll('.node')].forEach((el,i)=>{el.style.animation='none';void el.offsetWidth;el.classList.add('enter');el.style.animationDelay=(i*70)+'ms'});renderProps();
   const rt=nodes.find(n=>n.type==='runtime');
   applySession(rt?(rt.cfg.name||('scenario:'+key)):('scenario:'+key),sc.label);
-  toast('已载入场景：'+sc.label)}
+  toast(t('msg_scenario_loaded',{label:sc.label}))}
 function loadSample(){loadScenario('full')}
 let tt;function toast(m){const t=document.getElementById('toast');t.textContent=m;t.classList.add('show');clearTimeout(tt);tt=setTimeout(()=>t.classList.remove('show'),1900)}
-render();loadSample();
+function applyTranslations(){
+  const lang=i18n.getLang();
+  const flags={en:'🇺🇸',fr:'🇫🇷',zh:'🇨🇳'};
+  const lb=document.getElementById('langBtn');
+  if(lb)lb.textContent=(flags[lang]||'🌐')+' '+lang.toUpperCase();
+  const set=(id,txt)=>{const el=document.getElementById(id);if(el)el.textContent=txt};
+  set('appDesc',t('app_desc'));
+  const demoBtn=document.getElementById('demoBtn');
+  if(demoBtn){demoBtn.textContent='🖥 '+t('demo_mode');demoBtn.title=t('title_demo')}
+  set('newAgentBtn','＋ '+t('new_agent'));
+  set('deployCloudBtn','☁️ '+t('deploy_button'));
+  set('publishBtn','🚀 '+t('publish_button'));
+  const compareLink=document.getElementById('compareLink');
+  if(compareLink)compareLink.textContent='📊 '+t('lnk_compare');
+  const scenarioSel=document.getElementById('scenarioSel');
+  if(scenarioSel){
+    scenarioSel.title=t('title_load');
+    scenarioSel.options[0].text=t('select_load');
+    if(scenarioSel.options[1])scenarioSel.options[1].text=t('sc_minimal');
+    if(scenarioSel.options[2])scenarioSel.options[2].text=t('sc_support');
+    if(scenarioSel.options[3])scenarioSel.options[3].text=t('sc_analyst');
+    if(scenarioSel.options[4])scenarioSel.options[4].text=t('sc_full');
+  }
+  const segPlay=document.querySelector('[data-v="play"]');
+  if(segPlay)segPlay.textContent='🎮 '+t('playground');
+  const segCfg=document.querySelector('[data-v="cfg"]');
+  if(segCfg)segCfg.textContent='📄 '+t('artifacts');
+  const segReg=document.querySelector('[data-v="reg"]');
+  if(segReg)segReg.textContent='📚 '+t('registry');
+  set('srcBarLabel',t('stat_source'));
+  const pgMode=document.getElementById('pgMode');
+  if(pgMode&&!published)pgMode.textContent=t('stat_not_published');
+  const srcLocal=document.getElementById('srcLocal');
+  if(srcLocal)srcLocal.textContent=t('source_local');
+  const srcCloud=document.getElementById('srcCloud');
+  if(srcCloud)srcCloud.textContent=t('source_cloud');
+  const pgIn=document.getElementById('pgIn');
+  if(pgIn)pgIn.placeholder=t('msg_placeholder');
+  const sendBtn=document.querySelector('.pg-in button');
+  if(sendBtn)sendBtn.textContent=t('send_button');
+  const palTitle=document.getElementById('palTitle');
+  if(palTitle)palTitle.textContent=t('palette_title');
+  const palNote=document.getElementById('palNote');
+  if(palNote)palNote.textContent=t('palette_note');
+  const hint=document.getElementById('hint');
+  if(hint)hint.innerHTML='<span class="big">⬚</span>'+t('canvas_hint');
+  const dlBtn=document.querySelector('.pv-foot button:first-child');
+  if(dlBtn)dlBtn.textContent='⬇ '+t('download_current');
+  const cpBtn=document.querySelector('.pv-foot button:last-child');
+  if(cpBtn)cpBtn.textContent='📋 '+t('copy_btn');
+  const regHd=document.getElementById('regHd');
+  if(regHd){const cnt=document.getElementById('regCount');const n=cnt?cnt.textContent:'0';regHd.innerHTML='AgentCore <b>Registry</b> · <span id="regCount">'+n+'</span> '+t('reg_count_suffix')}
+  const modalHd=document.getElementById('modalHd');
+  if(modalHd)modalHd.innerHTML=t('modal_hd')+'<span class="mx" onclick="closeModal()">×</span>';
+  const cancelBtn=document.getElementById('cancelBtn');
+  if(cancelBtn)cancelBtn.textContent=t('cancel');
+  const pubConfirmBtn=document.getElementById('pubConfirmBtn');
+  if(pubConfirmBtn&&!pubConfirmBtn.disabled)pubConfirmBtn.textContent=t('confirm_publish_btn');
+}
+function cycleLang(){
+  const langs=['en','fr','zh'];
+  const cur=i18n.getLang();
+  const next=langs[(langs.indexOf(cur)+1)%langs.length];
+  i18n.setLang(next);
+  localStorage.setItem('studio_language',next);
+  COMPONENTS=buildComponents();
+  buildPalette();
+  render();
+  renderProps();
+  renderRegistry();
+  updateStat(nodes.find(n=>n.type==='runtime'));
+  applyTranslations();
+}
+render();loadSample();applyTranslations();
 </script>
 </body>
 </html>

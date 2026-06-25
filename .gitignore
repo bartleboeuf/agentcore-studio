@@ -2,8 +2,11 @@ workspace/
 __pycache__/
 *.pyc
 *.log
+.kiro
+.claude
 .DS_Store
 .bedrock_agentcore.yaml
+CLAUDE.MD
 gh-upload.sh
 deployments/
 agentcore-studio.json
