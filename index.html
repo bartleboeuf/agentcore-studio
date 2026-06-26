@@ -282,13 +282,14 @@
 <div class="toast" id="toast"></div>
 <script src="i18n.js"></script>
 <script>
+function getDefaultSystemPrompt(){return t('default_system_prompt')||'You are a helpful AWS assistant.'}
 function buildComponents(){return{
   runtime:{label:'Runtime',ic:'⚙️',ac:'var(--rt)',required:true,fields:[
     {k:'name',l:t('cf_name'),t:'text',d:'my_agent',hint:t('ch_name')},
     {k:'deploy_mode',l:t('cf_deploy_mode'),t:'select',o:['runtime'],d:'runtime',hint:t('ch_deploy_mode')},
     {k:'framework',l:t('cf_framework'),t:'select',o:['strands','minimal','claude_sdk','langchain','custom'],d:'strands'},
     {k:'model_id',l:t('cf_model_id'),t:'select',o:['anthropic.claude-sonnet-4-5-20250929-v1:0','anthropic.claude-haiku-4-5-20251001-v1:0','anthropic.claude-opus-4-1-20250805-v1:0','amazon.nova-pro-v1:0','amazon.nova-lite-v1:0','amazon.nova-micro-v1:0'],d:'anthropic.claude-sonnet-4-5-20250929-v1:0'},
-    {k:'system_prompt',l:t('cf_system_prompt'),t:'textarea',d:'你是一个乐于助人的 AWS 助手。'},
+    {k:'system_prompt',l:t('cf_system_prompt'),t:'textarea',d:getDefaultSystemPrompt},
     {k:'temperature',l:t('cf_temperature'),t:'select',o:['0','0.3','0.7','1.0'],d:'0.7'},
     {k:'max_tokens',l:t('cf_max_tokens'),t:'text',d:'1024'},
     {k:'deploy_type',l:t('cf_deploy_type'),t:'select',o:['direct_code_deploy','container'],d:'direct_code_deploy',hint:t('ch_deploy_type')},
@@ -436,7 +437,7 @@ function addNode(type,x,y){
   const c=COMPONENTS[type];
   if(!c.multi&&nodes.some(n=>n.type===type)){toast(t('msg_only_one',{label:c.label}));return}
   if(c.parent==='gateway'&&!nodes.some(n=>n.type==='gateway')){toast(t('msg_need_gateway'));return}
-  const cfg={};c.fields.forEach(f=>cfg[f.k]=f.d);
+  const cfg={};c.fields.forEach(f=>cfg[f.k]=typeof f.d==='function'?f.d():f.d);
   if(c.multi){const k=c.fields[0].k;cfg[k]=cfg[k]+'_'+(nodes.filter(n=>n.type===type).length+1)}
   const n={id:++nid,type,x:Math.max(10,x),y:Math.max(10,y),cfg};
   nodes.push(n);fresh.add(n.id);sel=n.id;published=false;render();renderProps()}
@@ -507,7 +508,7 @@ function isIncomplete(n){
 function newAgent(){
   if(nodes.length&&!confirm(t('msg_confirm_new_agent')))return;
   nodes=[];sel=null;nid=0;fresh.clear();published=false;deployed=false;
-  const c=COMPONENTS['runtime'],cfg={};c.fields.forEach(f=>cfg[f.k]=f.d);
+  const c=COMPONENTS['runtime'],cfg={};c.fields.forEach(f=>cfg[f.k]=typeof f.d==='function'?f.d():f.d);
   const name='agent_'+(Date.now()%10000);cfg.name=name;
   nodes.push({id:++nid,type:'runtime',x:40,y:250,cfg});fresh.add(nid);
   sel=nid;render();renderProps();toast(t('msg_new_agent_created',{name}))}
@@ -1299,7 +1300,7 @@ function resolveScenarioI18n(sc){
 function loadScenario(key){const scRaw=SCENARIOS[key]||SCENARIOS.full;const sc=resolveScenarioI18n(scRaw);
   snapshotSession();
   nodes=[];nid=0;fresh.clear();
-  sc.nodes.forEach(([t,x,y,ov])=>{const c=COMPONENTS[t],cfg={};c.fields.forEach(f=>cfg[f.k]=f.d);
+  sc.nodes.forEach(([t,x,y,ov])=>{const c=COMPONENTS[t],cfg={};c.fields.forEach(f=>cfg[f.k]=typeof f.d==='function'?f.d():f.d);
     if(c.multi){const k=c.fields[0].k;cfg[k]=cfg[k]+'_'+(nodes.filter(n=>n.type===t).length+1)}
     if(ov)Object.assign(cfg,ov);
     nodes.push({id:++nid,type:t,x,y,cfg});fresh.add(nid)});
