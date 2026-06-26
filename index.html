@@ -283,6 +283,7 @@
 <script src="i18n.js"></script>
 <script>
 function getDefaultSystemPrompt(){return t('default_system_prompt')||'You are a helpful AWS assistant.'}
+function getDefaultSkillCode(){return t('skill_code_default')||"def run(prompt: str) -> str:\n    # Implement skill logic here\n    return prompt"}
 function translateOptionValue(key,val){
   // Translate select field options for display
   const optMap={
@@ -344,7 +345,7 @@ function buildComponents(){return{
     {k:'category',l:t('cf_skill_category'),t:'select',o:['analysis','generation','retrieval','automation'],d:'analysis'},
     {k:'source_type',l:t('cf_skill_source_type'),t:'select',o:['inline','path','upload'],d:'inline',hint:t('ch_skill_source_type')},
     {k:'source',l:t('cf_skill_source'),t:'text',d:'',hint:t('ch_skill_source')},
-    {k:'code',l:t('cf_skill_code'),t:'skillcode',d:'def run(prompt: str) -> str:\n    # 在此实现技能逻辑\n    return prompt'},
+    {k:'code',l:t('cf_skill_code'),t:'skillcode',d:getDefaultSkillCode},
     {k:'zipfile',l:t('cf_skill_zipfile'),t:'skillzip',d:'',hint:t('ch_skill_zipfile')}]},
   codeinterp:{label:'Code Interpreter',ic:'💻',ac:'var(--ci)',fields:[
     {k:'identifier',l:t('cf_ci_identifier'),t:'text',d:'aws.codeinterpreter.v1'},
