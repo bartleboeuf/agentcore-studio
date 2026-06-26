@@ -316,7 +316,7 @@ function buildComponents(){return{
     {k:'allowed_clients',l:t('cf_allowed_clients'),t:'text',d:'',hint:t('ch_clients')},
     {k:'protocol',l:t('cf_protocol'),t:'select',o:['MCP'],d:'MCP'},
     {k:'semantic',l:t('cf_semantic'),t:'select',o:['true','false'],d:'true'},
-    {k:'description',l:t('cf_description'),t:'text',d:'工具网关'}]},
+    {k:'description',l:t('cf_description'),t:'text',d:()=>t('desc_gateway_default')}]},
   mcp:{label:'MCP Tool',ic:'🧰',ac:'var(--mcp)',multi:true,parent:'gateway',fields:[
     {k:'name',l:t('cf_tool_name'),t:'text',d:'web_search'},
     {k:'type',l:t('cf_tool_type'),t:'select',o:['lambda','web_search','openApiSchema','mcpServer','smithyModel'],d:'lambda',hint:t('ch_tool_type')},
@@ -324,10 +324,10 @@ function buildComponents(){return{
     {k:'schema',l:t('cf_tool_schema'),t:'skillcode',d:'',hint:t('ch_tool_schema')},
     {k:'egress_auth',l:t('cf_egress_auth'),t:'select',o:['IAM','API_KEY','OAuth'],d:'IAM'},
     {k:'credentials',l:t('cf_tool_credentials'),t:'text',d:'',hint:t('ch_credentials')},
-    {k:'description',l:t('cf_description'),t:'text',d:'工具描述'}]},
+    {k:'description',l:t('cf_description'),t:'text',d:()=>t('desc_mcp_default')}]},
   skill:{label:'Skill',ic:'✨',ac:'var(--skill)',multi:true,parent:'gateway',fields:[
     {k:'name',l:t('cf_skill_name'),t:'text',d:'summarize'},
-    {k:'desc',l:t('cf_description'),t:'text',d:'总结长文本'},
+    {k:'desc',l:t('cf_description'),t:'text',d:()=>t('desc_skill_default')},
     {k:'category',l:t('cf_skill_category'),t:'select',o:['analysis','generation','retrieval','automation'],d:'analysis'},
     {k:'source_type',l:t('cf_skill_source_type'),t:'select',o:['inline','path','upload'],d:'inline',hint:t('ch_skill_source_type')},
     {k:'source',l:t('cf_skill_source'),t:'text',d:'',hint:t('ch_skill_source')},
@@ -370,9 +370,9 @@ function buildComponents(){return{
     {k:'pname',l:t('cf_pname'),t:'text',d:'my_policy'},
     {k:'authoring',l:t('cf_authoring'),t:'select',o:['cedar','natural'],d:'cedar',hint:t('ch_authoring')},
     {k:'cedar',l:t('cf_cedar'),t:'skillcode',d:'permit(\n  principal,\n  action,\n  resource\n);'},
-    {k:'nl_desc',l:t('cf_nl_desc'),t:'textarea',d:'允许所有已认证用户调用 web_search 工具'},
+    {k:'nl_desc',l:t('cf_nl_desc'),t:'textarea',d:()=>t('cf_nl_desc_default')},
     {k:'validation',l:t('cf_validation'),t:'select',o:['IGNORE_ALL_FINDINGS','FAIL_ON_ANY_FINDINGS'],d:'IGNORE_ALL_FINDINGS'},
-    {k:'description',l:t('cf_description'),t:'text',d:'治理策略'}]},
+    {k:'description',l:t('cf_description'),t:'text',d:()=>t('desc_policy_default')}]},
 };}
 let COMPONENTS=buildComponents();
 let nodes=[],sel=null,nid=0,tab='entry',fresh=new Set(),published=false,view='play',pgSrc='local',deployed=false;
