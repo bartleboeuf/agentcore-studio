@@ -283,6 +283,19 @@
 <script src="i18n.js"></script>
 <script>
 function getDefaultSystemPrompt(){return t('default_system_prompt')||'You are a helpful AWS assistant.'}
+function translateOptionValue(key,val){
+  // Translate select field options for display
+  const optMap={
+    'attach_gateway':{
+      '(no attach)':()=>t('cf_attach_gw_option_no'),
+      '(gateway from canvas)':()=>t('cf_attach_gw_option_yes'),
+      '(不关联)':()=>t('cf_attach_gw_option_no'),
+      '(画布中的 Gateway)':()=>t('cf_attach_gw_option_yes')
+    }
+  };
+  if(optMap[key]&&optMap[key][val])return optMap[key][val]();
+  return val;
+}
 function buildComponents(){return{
   runtime:{label:'Runtime',ic:'⚙️',ac:'var(--rt)',required:true,fields:[
     {k:'name',l:t('cf_name'),t:'text',d:'my_agent',hint:t('ch_name')},
@@ -365,7 +378,7 @@ function buildComponents(){return{
     {k:'dashboard',l:t('cf_dashboard'),t:'select',o:['true','false'],d:'true'}]},
   policy:{label:'Policy',ic:'🛡️',ac:'var(--pol)',fields:[
     {k:'engine',l:t('cf_engine'),t:'text',d:'my_engine',hint:t('ch_engine')},
-    {k:'attach_gateway',l:t('cf_attach_gw'),t:'select',o:['(画布中的 Gateway)','(不关联)'],d:'(画布中的 Gateway)',hint:t('ch_attach_gw')},
+    {k:'attach_gateway',l:t('cf_attach_gw'),t:'select',o:['(no attach)','(gateway from canvas)'],d:'(gateway from canvas)',hint:t('ch_attach_gw')},
     {k:'mode',l:t('cf_pol_mode'),t:'select',o:['LOG_ONLY','ENFORCE'],d:'LOG_ONLY',hint:t('ch_pol_mode')},
     {k:'pname',l:t('cf_pname'),t:'text',d:'my_policy'},
     {k:'authoring',l:t('cf_authoring'),t:'select',o:['cedar','natural'],d:'cedar',hint:t('ch_authoring')},
@@ -1118,7 +1131,7 @@ function publish(){const rt=nodes.find(n=>n.type==='runtime');if(!rt){toast(t('m
   if(adv.length)topHtml+=`<div class="warnbox"><div class="warnhd">⚠ ${t('review_warn_hd',{n:adv.length})}</div>${adv.map(x=>`<div class="warnitem">• ${x}</div>`).join('')}</div>`;
   if(!rtInc&&!skip.length&&!adv.length)topHtml=`<div class="okbox">${t('review_ok')}</div>`;
   document.getElementById('reviewBody').innerHTML=topHtml+[...nodes].sort((a,b)=>order.indexOf(a.type)-order.indexOf(b.type)).map(n=>{const c=COMPONENTS[n.type];const ind=c.parent==='gateway';const inc=isIncomplete(n);
-    const kv=c.fields.filter(f=>!(n.type==='skill'&&((f.k==='source'&&n.cfg.source_type!=='path')||(f.k==='code'&&n.cfg.source_type==='path')))).map(f=>{let val=(''+(n.cfg[f.k]??'')).trim();if(f.k==='code'&&val.length>60)val=val.slice(0,60)+'…';return `${f.l}: <b>${val||'—'}</b>`}).join('<br>');
+    const kv=c.fields.filter(f=>!(n.type==='skill'&&((f.k==='source'&&n.cfg.source_type!=='path')||(f.k==='code'&&n.cfg.source_type==='path')))).map(f=>{let val=(''+(n.cfg[f.k]??'')).trim();if(f.k==='code'&&val.length>60)val=val.slice(0,60)+'…';val=translateOptionValue(f.k,val);return `${f.l}: <b>${val||'—'}</b>`}).join('<br>');
     return `<div class="rv"${ind?' style="margin-left:20px"':''}${inc?' data-inc="1"':''}><div class="rv-h" style="--ac:${c.ac}"><span class="chip">${c.ic}</span>${ind?'↳ ':''}${c.label}${inc?(n.type==='runtime'?' <span class="incflag">⛔</span>':`<span class="incflag">${t('skip_label')}</span>`):''}</div><div class="rv-kv">${kv}</div></div>`}).join('');
   const btn=document.getElementById('pubConfirmBtn');
   if(rtInc){btn.disabled=true;btn.textContent=t('btn_fix_runtime2');btn.classList.add('disabled')}
