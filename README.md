@@ -20,6 +20,8 @@
 - 拖拽编排 AgentCore 全部组件，点节点即弹浮层编辑；下拉切换字段联动（如 Skill 来源 inline/path/upload、Identity 入站/出站、Gateway IAM/JWT、Policy Cedar/自然语言、Runtime 代码来源 ECR/S3）
 - ⚙️🚀 **Runtime 与 Harness 双中枢**：Runtime（自带编排代码，容器/制品部署）与 Harness（声明式、AgentCore 托管 Agent 循环，不可变版本 + 命名 endpoint 即时回滚）二选一，按需切换
 - ✨ **AI 生成画布（NL→Canvas）**：一句话描述你想要的 Agent，自动生成节点与连线的**可编辑画布**，生成后继续拖拽微调并自动 pre-flight 校验
+- 🧠 **深度生成（Deep Generate）**：4 步智能编排（需求分解 → 组件配置 → System Prompt → 校验），SSE 流式实时进度反馈，自动生成完整可部署产物 + 选型决策理由 + 部署前报告；生成结果一键应用到画布
+- ⏰ **定时触发（EventBridge Scheduler）**：需求中包含周期性执行时自动引入，部署脚本生成 `aws scheduler create-schedule` + IAM Role，支持 cron/rate 表达式
 - 📦 **一键场景模板**：极简对话 / 客服（带工具）/ 数据分析 / 全家桶，秒级铺满画布
 - 🔗 关系准确的连线（Runtime 为中枢，MCP/Skill 挂在 Gateway 下）
 
@@ -56,5 +58,6 @@ PORT=9000 STUDIO_PASSWORD=yourpass python3 server.py
 | 文件 | 说明 |
 |---|---|
 | `index.html` | 单文件前端（字体内联，可离线） |
-| `server.py` | 零依赖后端（发布 / Playground / 部署 / 云端调用 / NL→Canvas 中继） |
+| `server.py` | 零依赖后端（发布 / Playground / 部署 / 云端调用 / NL→Canvas / 深度生成中继） |
+| `deep_generate.py` | 深度生成引擎（4 步 LLM 编排 + 并行优化 + SSE 流式进度） |
 | `Dockerfile` | 容器镜像（内置 agentcore CLI + AWS CLI + zip）— 可选，用于打包到任意容器平台 |

@@ -190,6 +190,10 @@
   #aiModal .ai-egs{display:flex;flex-wrap:wrap;gap:7px}
   #aiModal .ai-eg{font-size:11.5px;color:var(--muted);background:var(--ink3);border:1px solid var(--line2);border-radius:16px;padding:5px 11px;cursor:pointer;transition:.15s;user-select:none}
   #aiModal .ai-eg:hover{border-color:var(--orange);color:var(--text);transform:translateY(-1px)}
+  #aiModal .ai-mode-btn{font-size:12px;padding:5px 12px;border-radius:16px;border:1px solid var(--line2)}
+  #aiModal .ai-mode-btn.on{background:var(--orange);color:#fff;border-color:var(--orange)}
+  #aiModal .deep-tab{font-size:11px;padding:6px 10px;border-radius:0;border:none;border-right:1px solid var(--line2)}
+  #aiModal .deep-tab.on{background:var(--ink3);font-weight:600}
   .msg.setrun{align-self:stretch;max-width:100%;background:#0c0f16;border:1px solid var(--line2);border-radius:10px;padding:11px 12px}
   .setrun .sr-hd{font-family:var(--ui);font-size:12px;color:var(--muted2);font-weight:600;margin-bottom:8px}
   .set-item{padding:8px 0;border-top:1px solid var(--line2)}
@@ -370,21 +374,37 @@
 <div class="modal" id="aiModal"><div class="mcard">
   <div class="mhd"><span data-i18n>✨ AI 生成画布</span><span class="mx" onclick="closeAI()">×</span></div>
   <div class="mbody">
+    <div style="display:flex;gap:6px;margin-bottom:12px">
+      <button class="btn-ghost ai-mode-btn on" id="aiModeQuick" onclick="setAiMode('quick')">⚡ 快速生成</button>
+      <button class="btn-ghost ai-mode-btn" id="aiModeDeep" onclick="setAiMode('deep')">🧠 深度生成</button>
+    </div>
+    <div id="aiModeHint" class="hint" style="margin-bottom:10px" data-i18n>AI 生成节点与连线，生成后可继续拖拽编辑并自动 pre-flight 校验。需要 AWS 凭证（Bedrock）。</div>
     <div class="ma-sec" style="margin-top:0" data-i18n>用一句话描述你想要的 Agent</div>
     <div class="field">
       <textarea id="aiDesc" rows="3" data-i18n-ph placeholder="例如：一个客服 Agent，能查订单（Lambda 工具）、检索 FAQ 知识库，并记住用户偏好"></textarea>
-      <div class="hint" data-i18n>AI 生成节点与连线，生成后可继续拖拽编辑并自动 pre-flight 校验。需要 AWS 凭证（Bedrock）。</div>
     </div>
     <div class="ma-sec" data-i18n>试试这些</div>
-    <div class="ai-egs">
+    <div class="ai-egs" id="aiEgs">
       <span class="ai-eg" onclick="aiEg(this.dataset.eg)" data-eg="一个客服 Agent，能查订单（Lambda 工具）、检索 FAQ 知识库，并记住用户偏好">🎧 <span data-i18n>客服助手</span></span>
       <span class="ai-eg" onclick="aiEg(this.dataset.eg)" data-eg="一个数据分析助手，能用 Python 代码做计算、统计和绘图">📊 <span data-i18n>数据分析</span></span>
       <span class="ai-eg" onclick="aiEg(this.dataset.eg)" data-eg="一个联网研究助手，能搜索网页并总结要点">🔎 <span data-i18n>联网研究</span></span>
       <span class="ai-eg" onclick="aiEg(this.dataset.eg)" data-eg="一个极简的对话助手">💬 <span data-i18n>极简对话</span></span>
+      <span class="ai-eg" onclick="aiEg(this.dataset.eg)" data-eg="监控京东上 iPhone 16 的价格，低于 6000 元就邮件通知我 test@example.com，每小时检查一次" style="display:none" data-deep>🛒 价格监控</span>
+      <span class="ai-eg" onclick="aiEg(this.dataset.eg)" data-eg="每天早上 9 点搜索行业新闻并发邮件摘要给我 boss@company.com" style="display:none" data-deep>📰 新闻日报</span>
+      <span class="ai-eg" onclick="aiEg(this.dataset.eg)" data-eg="监控竞品网站 https://competitor.com/pricing 的定价页面，有变化就通知我" style="display:none" data-deep>🔍 竞品监控</span>
     </div>
     <div id="aiErr" class="hint" style="color:var(--pol);margin-top:8px"></div>
+    <div id="deepResult" style="display:none;margin-top:12px;border:1px solid var(--line2);border-radius:8px;overflow:hidden">
+      <div style="display:flex;border-bottom:1px solid var(--line2)">
+        <button class="btn-ghost deep-tab on" onclick="deepTab('overview')">📋 概览</button>
+        <button class="btn-ghost deep-tab" onclick="deepTab('prompt')">📝 Prompt</button>
+        <button class="btn-ghost deep-tab" onclick="deepTab('code')">💻 代码</button>
+        <button class="btn-ghost deep-tab" onclick="deepTab('validation')">🧪 校验</button>
+      </div>
+      <div id="deepContent" style="max-height:280px;overflow-y:auto;padding:12px;font-size:12px;white-space:pre-wrap;font-family:var(--mono)"></div>
+    </div>
   </div>
-  <div class="mfoot"><button class="btn-ghost" onclick="closeAI()" data-i18n>取消</button><button class="btn-pri" id="aiGoBtn" onclick="aiGenerate()" data-i18n>✨ 生成</button></div>
+  <div class="mfoot"><button class="btn-ghost" onclick="closeAI()" data-i18n>取消</button><button class="btn-pri" id="aiGoBtn" onclick="aiGo()" data-i18n>✨ 生成</button></div>
 </div></div>
 <div class="modal" id="maModal"><div class="mcard">
   <div class="mhd"><span data-i18n>🧩 多 Agent 编排</span><span class="mx" onclick="closeMA()">×</span></div>
@@ -451,6 +471,10 @@ const EN={
   '多 Agent 编排：从云端拉取已发布 agent，设定 Supervisor→子 Agent 关系':'Multi-agent orchestration: pull published agents from the cloud and set Supervisor→sub-agent relationships',
   '导入：从云端拉取 Studio 发布过的 agent，读回画布配置继续编辑':'Import: pull Studio-published agents from the cloud and load their canvas config to keep editing',
   '一键载入演示场景':'Load a demo scenario','📦 载入场景…':'📦 Load scenario…',
+  '深度生成：分析需求后生成完整配置、System Prompt 和工具代码，可直接部署运行。':'Deep generate: analyze requirements, produce full config, System Prompt, and tool code — ready to deploy.',
+  '分析需求中…':'Analyzing…','Step 1/4: 需求分解…':'Step 1/4: Decomposing…',
+  '🧠 深度生成':'🧠 Deep Generate','✅ 应用到画布':'✅ Apply to Canvas',
+  '✨ 已生成画布（含完整配置）':'✨ Canvas generated (with full config)',
   '极简对话 Agent':'Minimal chat Agent','客服 Agent（带工具）':'Support Agent (with tools)','数据分析 Agent':'Data-analysis Agent','全家桶（全部组件）':'Full stack (all components)',
   '☁️ 发布到云端':'☁️ Publish to Cloud','🚀 本地发布':'🚀 Local Publish','提示':'Tips',
   'MCP Tool 与 Skill 是 Gateway 的工具目标，需先添加 Gateway。配置完点「发布」汇总确认后即可在 Playground 对话。':'MCP Tools and Skills are tool targets of a Gateway — add a Gateway first. After configuring, click Publish to review, then chat in the Playground.',
@@ -680,6 +704,7 @@ let nodes=[],sel=null,nid=0,tab='entry',fresh=new Set(),published=false,view='pl
 let sessions={},curName=null,lastCloudName=null;  // 每个场景/agent 独立 session：published/deployed/源模式/对话历史；lastCloudName=上次云端部署的名字（改名检测）
 try{const _ss=JSON.parse(localStorage.getItem('acs_sessions'));if(_ss&&typeof _ss==='object')sessions=_ss}catch(e){}  // B4：刷新后恢复各 agent 的对话历史
 let pgHist=[],pgSession=null;  // 会话内多轮记忆：完整对话历史 + 稳定 session id（随每次对话发给后端）
+let pgStats={turns:0,tokens:{in:0,out:0},tools:{},latency:[]};  // 会话级统计
 
 const pal=document.getElementById('palette');
 function buildPalette(){pal.innerHTML='';
@@ -1058,6 +1083,46 @@ function gen(){
       `aws s3api head-bucket --bucket "$_SB" --region ${region} 2>/dev/null || aws s3api create-bucket --bucket "$_SB" --region ${region} $([ "${region}" != "us-east-1" ] && echo "--create-bucket-configuration LocationConstraint=${region}") >/dev/null 2>&1 || true`,
       `[ -f ../.studio_spec.json ] && aws s3 cp ../.studio_spec.json "s3://$_SB/specs/${c.name}.json" --region ${region} >/dev/null 2>&1 && echo "✅ Studio 配置已存档（可后续导入编辑）" || echo "⚠ Studio 配置存档跳过"`,
       `echo "✅ Harness 部署完成（项目目录: ${pn}/）"`];
+    // EventBridge Scheduler（深度生成时 cfg 里可能有 scheduler_cron/scheduler_prompt）
+    if((c.scheduler_cron||'').trim()){
+      const cron=c.scheduler_cron.trim();
+      const tprompt=(c.scheduler_prompt||'执行定时任务').replace(/'/g,"'\\''");
+      s.push('','# EventBridge Scheduler — 定时触发 Agent（唯一非 AgentCore 组件）',
+        'echo "###STEP### scheduler"',
+        'ACCT=$(aws sts get-caller-identity --query Account --output text)',
+        `SCHED_NAME="${pn}-scheduler"`,
+        `SCHED_ROLE_NAME="${pn}-scheduler-role"`,
+        '# 获取 Harness/Runtime ARN',
+        `AGENT_ARN=$(aws bedrock-agentcore-control list-agent-runtimes --region ${region} --query "agentRuntimes[?agentRuntimeName=='${c.name}'].agentRuntimeArn | [0]" --output text 2>/dev/null)`,
+        'if [ -z "$AGENT_ARN" ] || [ "$AGENT_ARN" = "None" ]; then',
+        '  echo "⚠ 未找到 Agent ARN，EventBridge Scheduler 跳过（请部署成功后手动创建）"',
+        'else',
+        '  # 创建 Scheduler IAM Role（允许 invoke AgentCore Runtime）',
+        `  cat > /tmp/sched_trust.json <<'EOF'`,
+        '{"Version":"2012-10-17","Statement":[{"Effect":"Allow","Principal":{"Service":"scheduler.amazonaws.com"},"Action":"sts:AssumeRole"}]}',
+        'EOF',
+        `  cat > /tmp/sched_policy.json <<EOF`,
+        '{"Version":"2012-10-17","Statement":[{"Effect":"Allow","Action":"bedrock-agentcore:InvokeAgentRuntime","Resource":"$AGENT_ARN"}]}',
+        'EOF',
+        `  aws iam create-role --role-name "$SCHED_ROLE_NAME" --assume-role-policy-document file:///tmp/sched_trust.json --region ${region} >/dev/null 2>&1 || true`,
+        `  aws iam put-role-policy --role-name "$SCHED_ROLE_NAME" --policy-name invoke-agent --policy-document file:///tmp/sched_policy.json >/dev/null 2>&1`,
+        '  SCHED_ROLE_ARN="arn:aws:iam::$ACCT:role/$SCHED_ROLE_NAME"',
+        '  sleep 10  # 等待 IAM 传播',
+        '  # 创建/更新 EventBridge Schedule',
+        `  PAYLOAD='{"prompt":"${tprompt}"}'`,
+        `  aws scheduler create-schedule --name "$SCHED_NAME" --schedule-expression "${cron}" \\`,
+        `    --flexible-time-window '{"Mode":"OFF"}' \\`,
+        `    --target "{\\\"Arn\\\":\\\"$AGENT_ARN\\\",\\\"RoleArn\\\":\\\"$SCHED_ROLE_ARN\\\",\\\"Input\\\":\\"$PAYLOAD\\"}" \\`,
+        `    --region ${region} >/dev/null 2>&1 \\`,
+        `    && echo "✅ EventBridge Scheduler 已创建: ${cron}" \\`,
+        `    || aws scheduler update-schedule --name "$SCHED_NAME" --schedule-expression "${cron}" \\`,
+        `      --flexible-time-window '{"Mode":"OFF"}' \\`,
+        `      --target "{\\\"Arn\\\":\\\"$AGENT_ARN\\\",\\\"RoleArn\\\":\\\"$SCHED_ROLE_ARN\\\",\\\"Input\\\":\\"$PAYLOAD\\"}" \\`,
+        `      --region ${region} >/dev/null 2>&1 \\`,
+        `      && echo "✅ EventBridge Scheduler 已更新: ${cron}" \\`,
+        `      || echo "⚠ Scheduler 创建/更新失败（需 scheduler:* 权限）"`,
+        'fi');
+    }
     const deploy=s.join('\n');
 
     // Harness invoke script as entry
@@ -1100,9 +1165,11 @@ if __name__ == "__main__":
     const registry={agent:c.name,deploy_mode:'harness',model:c.model_id,region,
       tools:toolsList,
       components:nodes.filter(n=>!COMPONENTS[n.type].multi&&!['codeinterp','browser'].includes(n.type)).map(n=>({type:n.type,name:n.cfg.name||n.cfg.gw_name||n.cfg.engine||COMPONENTS[n.type].label}))};
-    const policy=JSON.stringify({Version:'2012-10-17',Statement:[
+    const hStmts=[
       {Sid:'Harness',Effect:'Allow',Action:['bedrock-agentcore:*','bedrock:InvokeModel','bedrock:InvokeModelWithResponseStream'],Resource:'*'},
-      {Sid:'IAM',Effect:'Allow',Action:['iam:GetRole','iam:PassRole'],Resource:'*'}]},null,4);
+      {Sid:'IAM',Effect:'Allow',Action:['iam:GetRole','iam:PassRole'],Resource:'*'}];
+    if((c.scheduler_cron||'').trim())hStmts.push({Sid:'Scheduler',Effect:'Allow',Action:['scheduler:CreateSchedule','scheduler:UpdateSchedule','scheduler:GetSchedule','iam:CreateRole','iam:PutRolePolicy','iam:PassRole'],Resource:'*'});
+    const policy=JSON.stringify({Version:'2012-10-17',Statement:hStmts},null,4);
     return{entry,deploy,registry:JSON.stringify(registry,null,2),policy,req:'boto3>=1.34.0'}}
 
   // === Runtime 模式（原有逻辑）===
@@ -1366,6 +1433,42 @@ if __name__ == "__main__":
   // 方案②：把画布 spec 存档到 state 桶，供「导入」读回重建可编辑视图（复用上面已建的 $STATE_BUCKET）
   s.push('','echo "###STEP### studio-spec"',
     `[ -f .studio_spec.json ] && aws s3 cp .studio_spec.json "s3://$STATE_BUCKET/specs/${c.name}.json" --region ${region} >/dev/null 2>&1 && echo "✅ Studio 配置已存档（可后续导入编辑）" || echo "⚠ Studio 配置存档跳过（不影响部署）"`);
+  // EventBridge Scheduler（深度生成时 cfg 里可能有 scheduler_cron/scheduler_prompt）
+  if((c.scheduler_cron||'').trim()){
+    const cron=c.scheduler_cron.trim();
+    const tprompt=(c.scheduler_prompt||'执行定时任务').replace(/'/g,"'\\''");
+    s.push('','# EventBridge Scheduler — 定时触发 Agent（唯一非 AgentCore 组件）',
+      'echo "###STEP### scheduler"',
+      `SCHED_NAME="${c.name}-scheduler"`,
+      `SCHED_ROLE_NAME="${c.name}-scheduler-role"`,
+      `AGENT_ARN=$(aws bedrock-agentcore-control list-agent-runtimes --region ${region} --query "agentRuntimes[?agentRuntimeName=='${c.name}'].agentRuntimeArn | [0]" --output text 2>/dev/null)`,
+      'if [ -z "$AGENT_ARN" ] || [ "$AGENT_ARN" = "None" ]; then',
+      '  echo "⚠ 未找到 Agent ARN，EventBridge Scheduler 跳过（请部署成功后手动创建）"',
+      'else',
+      `  cat > /tmp/sched_trust.json <<'EOF'`,
+      '{"Version":"2012-10-17","Statement":[{"Effect":"Allow","Principal":{"Service":"scheduler.amazonaws.com"},"Action":"sts:AssumeRole"}]}',
+      'EOF',
+      `  cat > /tmp/sched_policy.json <<EOF`,
+      '{"Version":"2012-10-17","Statement":[{"Effect":"Allow","Action":"bedrock-agentcore:InvokeAgentRuntime","Resource":"$AGENT_ARN"}]}',
+      'EOF',
+      `  aws iam create-role --role-name "$SCHED_ROLE_NAME" --assume-role-policy-document file:///tmp/sched_trust.json >/dev/null 2>&1 || true`,
+      `  aws iam put-role-policy --role-name "$SCHED_ROLE_NAME" --policy-name invoke-agent --policy-document file:///tmp/sched_policy.json >/dev/null 2>&1`,
+      '  SCHED_ROLE_ARN="arn:aws:iam::$ACCOUNT:role/$SCHED_ROLE_NAME"',
+      '  sleep 10',
+      `  PAYLOAD='{"prompt":"${tprompt}"}'`,
+      `  aws scheduler create-schedule --name "$SCHED_NAME" --schedule-expression "${cron}" \\`,
+      `    --flexible-time-window '{"Mode":"OFF"}' \\`,
+      `    --target "{\\\"Arn\\\":\\\"$AGENT_ARN\\\",\\\"RoleArn\\\":\\\"$SCHED_ROLE_ARN\\\",\\\"Input\\\":\\"$PAYLOAD\\"}" \\`,
+      `    --region ${region} >/dev/null 2>&1 \\`,
+      `    && echo "✅ EventBridge Scheduler 已创建: ${cron}" \\`,
+      `    || aws scheduler update-schedule --name "$SCHED_NAME" --schedule-expression "${cron}" \\`,
+      `      --flexible-time-window '{"Mode":"OFF"}' \\`,
+      `      --target "{\\\"Arn\\\":\\\"$AGENT_ARN\\\",\\\"RoleArn\\\":\\\"$SCHED_ROLE_ARN\\\",\\\"Input\\\":\\"$PAYLOAD\\"}" \\`,
+      `      --region ${region} >/dev/null 2>&1 \\`,
+      `      && echo "✅ EventBridge Scheduler 已更新: ${cron}" \\`,
+      `      || echo "⚠ Scheduler 创建/更新失败（需 scheduler:* 权限）"`,
+      'fi');
+  }
   s.push('','echo "✅ 所有组件部署完成"');
   const deploy=s.join('\n').replace(/uv run agentcore/g,'agentcore');
   const registry={agent:c.name,framework:c.framework,model:c.model_id,region,
@@ -1379,6 +1482,7 @@ if __name__ == "__main__":
   if(obs&&obs.cfg.enabled!=='false')stmts.push({Sid:'Observability',Effect:'Allow',Action:['logs:CreateLogGroup','logs:CreateLogStream','logs:PutLogEvents','xray:PutTraceSegments'],Resource:'*'});
   if(gw)stmts.push({Sid:'Gateway',Effect:'Allow',Action:['bedrock-agentcore:InvokeGateway','lambda:InvokeFunction'],Resource:'*'});
   if((c.workers||[]).some(w=>w&&w.arn))stmts.push({Sid:'InvokeSubAgents',Effect:'Allow',Action:['bedrock-agentcore:InvokeAgentRuntime'],Resource:'*'});
+  if((c.scheduler_cron||'').trim())stmts.push({Sid:'Scheduler',Effect:'Allow',Action:['scheduler:CreateSchedule','scheduler:UpdateSchedule','scheduler:GetSchedule','iam:CreateRole','iam:PutRolePolicy','iam:PassRole'],Resource:'*'});
   const policy=JSON.stringify({Version:'2012-10-17',Statement:stmts},null,4);
   let req=['bedrock-agentcore>=0.1.0','bedrock-agentcore-starter-toolkit>=0.1.0'];
   if(c.framework==='strands')req.push('strands-agents>=0.1.0');if(c.framework==='claude_sdk')req.push('anthropic>=0.39.0');if(c.framework==='langchain')req.push('langchain>=0.3.0','langchain-aws>=0.2.0');
@@ -1586,7 +1690,21 @@ function buildTraceEl(T){if(!T||typeof T!=='object')return null;
   hd.onclick=()=>{body.hidden=!body.hidden;hd.textContent=(body.hidden?'▸ ':'▾ ')+lbl()};
   return d}
 function addTrace(T){const el=buildTraceEl(T);if(!el)return;el.classList.add('msg');
-  const m=document.getElementById('msgs');m.appendChild(el);m.scrollTop=m.scrollHeight}
+  const m=document.getElementById('msgs');m.appendChild(el);m.scrollTop=m.scrollHeight;
+  // 累积统计
+  pgStats.turns++;
+  const u=T.usage||{};pgStats.tokens.in+=(u.input_tokens||0);pgStats.tokens.out+=(u.output_tokens||0);
+  if(T.latency_ms)pgStats.latency.push(T.latency_ms);
+  (T.tool_calls||[]).forEach(c=>{const n=c.name||'unknown';pgStats.tools[n]=(pgStats.tools[n]||0)+1});
+  renderPgStats()}
+function renderPgStats(){
+  let bar=document.getElementById('pgStatsBar');
+  if(!bar){bar=document.createElement('div');bar.id='pgStatsBar';bar.style.cssText='font-size:11px;color:#888;padding:4px 12px;border-top:1px solid #eee;display:flex;gap:12px;flex-wrap:wrap';
+    const pg=document.getElementById('msgs');pg.parentNode.insertBefore(bar,pg.nextSibling)}
+  if(!pgStats.turns){bar.textContent='';return}
+  const avgLat=pgStats.latency.length?Math.round(pgStats.latency.reduce((a,b)=>a+b,0)/pgStats.latency.length):0;
+  const toolStr=Object.entries(pgStats.tools).map(([k,v])=>k+'×'+v).join(' ');
+  bar.textContent=`📊 ${pgStats.turns} 轮 | 🎫 ${pgStats.tokens.in}→${pgStats.tokens.out} tok | ⏱ avg ${avgLat}ms`+(toolStr?` | 🔧 ${toolStr}`:'')}
 let abMode=false;
 function toggleAB(){abMode=!abMode;
   if(abMode&&setRunMode)toggleSet();  // 与测试集互斥
@@ -1701,11 +1819,32 @@ async function deployCloud(){const rt=centerNode();if(!rt){toast('请先添加 R
   if(isIncomplete(rt)){toast('⛔ Runtime 未配置完整，无法部署');switchView('cfg');return}
   const skipped=nodes.filter(n=>isIncomplete(n)&&n.type!=='runtime');
   const adv=collectWarnings().filter(w=>!nodes.some(n=>isIncomplete(n)&&w.includes(isIncomplete(n))));
-  let pre='真实部署到云端？需 uv + agentcore toolkit + 凭证，耗时数分钟并产生费用。';
-  if(isHosted())pre='⚠ 当前为托管环境（如 App Runner）：真实部署资源开销大、可能受限或中断。建议真实部署在本地 Studio 执行；托底演示可直接用「AWS 云端」已就绪 Agent。\n\n仍要在此尝试部署吗？\n\n'+pre;
-  if(skipped.length)pre='⏭ 将跳过 '+skipped.length+' 个未配置组件（不部署）：\n'+skipped.map(n=>{const c=COMPONENTS[n.type];return c.ic+(n.cfg.name||n.cfg.gw_name||n.cfg.engine||c.label)}).join('、')+'\n\n'+pre;
-  if(adv.length)pre='⚠ 建议（不阻止）：\n'+adv.join('\n')+'\n\n'+pre;
-  if(!confirm(pre))return;
+  // 部署计划（类似 terraform plan）
+  const c=rt.cfg,hasSched=(c.scheduler_cron||'').trim();
+  const plan=[];
+  plan.push('━━━ 部署计划 ━━━');
+  plan.push('');
+  plan.push('将创建/更新的资源:');
+  if(rt.type==='harness')plan.push('  + AgentCore Harness: '+c.name+' (CDK 部署)');
+  else plan.push('  + AgentCore Runtime: '+c.name+' ('+c.deploy_type+')');
+  const mem2=nodes.find(n=>n.type==='memory'&&!isIncomplete(n));
+  if(mem2)plan.push('  + Memory: '+(mem2.cfg.mode||'semantic'));
+  const gw2=nodes.find(n=>n.type==='gateway'&&!isIncomplete(n));
+  if(gw2)plan.push('  + Gateway: '+gw2.cfg.gw_name);
+  const pol2=nodes.find(n=>n.type==='policy'&&!isIncomplete(n));
+  if(pol2)plan.push('  + Policy Engine: '+pol2.cfg.engine);
+  if(hasSched)plan.push('  + EventBridge Schedule: '+c.scheduler_cron);
+  plan.push('');
+  plan.push('所需权限: bedrock:*, bedrock-agentcore:*, iam:PassRole'+(hasSched?', scheduler:*':''));
+  plan.push('区域: '+(c.region||'us-west-2'));
+  plan.push('预估耗时: '+(rt.type==='harness'?'3-5 分钟':'2-4 分钟'));
+  plan.push('预估月费: ~$3-10（Agent 闲置无费用，按调用计费）');
+  plan.push('');
+  if(skipped.length)plan.push('⏭ 跳过 '+skipped.length+' 个未配置组件: '+skipped.map(n=>{const cc=COMPONENTS[n.type];return cc.ic+(n.cfg.name||n.cfg.gw_name||n.cfg.engine||cc.label)}).join('、'),'');
+  if(adv.length)plan.push('⚠ 建议:',adv.join('\n'),'');
+  if(isHosted())plan.push('⚠ 当前为托管环境（App Runner）：建议在本地 Studio 执行真实部署','');
+  plan.push('确认执行？');
+  if(!confirm(plan.join('\n')))return;
   // 改名检测：AgentCore 不能重命名 → 新建 + 旧的成孤儿
   const curNm=rt.cfg.name; let delOld=null;
   if(lastCloudName && lastCloudName!==curNm){
@@ -1776,7 +1915,7 @@ function applySession(name,label){
     pgHist=st.hist?st.hist.slice():[];pgSession=st.session||(name+'-'+Date.now().toString(36));
     document.getElementById('srcCloud').classList.toggle('avail',!!st.cloudAvail)}
   else{published=false;deployed=false;pgSrc='local';lastCloudName=null;m.innerHTML='';
-    pgHist=[];pgSession=name+'-'+Date.now().toString(36);
+    pgHist=[];pgSession=name+'-'+Date.now().toString(36);pgStats={turns:0,tokens:{in:0,out:0},tools:{},latency:[]};renderPgStats();
     document.getElementById('srcCloud').classList.remove('avail');
     addMsg('sys',tr('🆕 场景「')+tr(label||name)+tr('」：先在「本地」对话测试，OK 后再「发布到云端」。每个场景需各自发布；云端对话用的是该场景自己部署的 Agent。'))}
   syncSrcPills()}
@@ -1793,9 +1932,127 @@ function loadScenario(key){const sc=SCENARIOS[key]||SCENARIOS.full;
   toast('已载入场景：'+sc.label)}
 function loadSample(){loadScenario('full')}
 // ---- A2 NL→画布：一句话描述 → LLM 生成 spec → 重建可编辑画布 ----
-function openAI(){document.getElementById('aiErr').textContent='';document.getElementById('aiModal').classList.add('show')}
+let _aiMode='quick',_deepResult=null;
+function openAI(){document.getElementById('aiErr').textContent='';document.getElementById('deepResult').style.display='none';document.getElementById('aiModal').classList.add('show')}
 function closeAI(){document.getElementById('aiModal').classList.remove('show')}
 function aiEg(s){const el=document.getElementById('aiDesc');el.value=tr(s);el.focus()}
+function setAiMode(m){
+  _aiMode=m;
+  document.getElementById('aiModeQuick').classList.toggle('on',m==='quick');
+  document.getElementById('aiModeDeep').classList.toggle('on',m==='deep');
+  document.getElementById('aiModeHint').textContent=m==='quick'
+    ?tr('AI 生成节点与连线，生成后可继续拖拽编辑并自动 pre-flight 校验。需要 AWS 凭证（Bedrock）。')
+    :tr('深度生成：分析需求后生成完整配置、System Prompt 和工具代码，可直接部署运行。');
+  document.querySelectorAll('#aiEgs [data-deep]').forEach(el=>el.style.display=m==='deep'?'':'none');
+  document.getElementById('deepResult').style.display='none';
+  document.getElementById('aiGoBtn').textContent=m==='quick'?tr('✨ 生成'):tr('🧠 深度生成');
+}
+function aiGo(){if(_aiMode==='deep')deepGenerate();else aiGenerate()}
+async function deepGenerate(){
+  const desc=(document.getElementById('aiDesc').value||'').trim();
+  if(!desc){toast(tr('请先描述你的 Agent'));return}
+  const btn=document.getElementById('aiGoBtn'),err=document.getElementById('aiErr');
+  err.textContent='';btn.disabled=true;const orig=btn.textContent;btn.textContent=tr('分析需求中…');
+  document.getElementById('deepResult').style.display='none';
+  const stepLabels=['需求分解','组件配置生成','System Prompt 生成','校验'];
+  try{
+    const rt=centerNode(),region=(rt&&rt.cfg&&rt.cfg.region)||'us-west-2';
+    const r=await fetch('/api/deep-generate',{method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({prompt:desc,region})});
+    const reader=r.body.getReader(),decoder=new TextDecoder();
+    let buf='',j=null;
+    while(true){
+      const{done,value}=await reader.read();
+      if(done)break;
+      buf+=decoder.decode(value,{stream:true});
+      const lines=buf.split('\n');
+      buf=lines.pop();
+      let evtType=null;
+      for(const line of lines){
+        if(line.startsWith('event: '))evtType=line.slice(7).trim();
+        else if(line.startsWith('data: ')&&evtType){
+          const payload=JSON.parse(line.slice(6));
+          if(evtType==='progress'){
+            btn.textContent=tr(`Step ${payload.step}/${payload.total}: ${payload.label}…`);
+          }else if(evtType==='done'){
+            j=payload;
+          }
+          evtType=null;
+        }
+      }
+    }
+    if(!j||!j.ok){err.textContent=tr('生成失败：')+((j&&j.error)||'');btn.disabled=false;btn.textContent=orig;return}
+    _deepResult=j;
+    document.getElementById('deepResult').style.display='block';
+    deepTab('overview');
+    btn.textContent=tr('✅ 应用到画布');btn.disabled=false;
+    btn.onclick=function(){deepApply();btn.onclick=function(){aiGo()};btn.textContent=orig};
+  }catch(e){
+    err.textContent=tr('生成失败：')+(e.message||'网络错误');btn.disabled=false;btn.textContent=orig;
+  }
+}
+function deepTab(tab){
+  document.querySelectorAll('#aiModal .deep-tab').forEach((el,i)=>{el.classList.toggle('on',['overview','prompt','code','validation'][i]===tab)});
+  const el=document.getElementById('deepContent');
+  if(!_deepResult){el.textContent='无数据';return}
+  if(tab==='overview'){
+    const s=_deepResult.spec||{},c=_deepResult.components||{},d=_deepResult.deploy_config||{};
+    let h=`📌 ${s.summary||'Agent'}\n\n`;
+    h+=`━━━ 架构概要 ━━━\n`;
+    h+=`▸ 部署模式: ${s.deploy_mode||'harness'} (${s.deploy_mode_reason||''})\n`;
+    h+=`▸ 内置工具: ${(s.builtin_tools||[]).join(', ')||'无'}\n`;
+    h+=`▸ Memory: ${s.memory?s.memory.strategy+' — '+s.memory.reason:'无'}\n`;
+    h+=`▸ Policy: ${s.policy?(s.policy.rules_desc||[]).join('; '):'无'}\n`;
+    h+=`▸ 定时触发: ${s.scheduler?s.scheduler.interval:'无'}\n`;
+    h+=`▸ Gateway 工具: ${(s.gateway_targets||[]).length?s.gateway_targets.map(t=>t.name).join(', '):'无（全部用内置）'}\n`;
+    h+=`▸ 外部依赖: ${(s.external_deps||[]).join(', ')||'无'}\n`;
+    h+=`▸ 预估月费: ${d.estimated_cost||s.estimated_monthly_cost||'未估算'}\n`;
+    // 决策理由
+    const decisions=s.decisions||[];
+    if(decisions.length){
+      h+=`\n━━━ 选型决策 ━━━\n`;
+      decisions.forEach(dc=>{
+        h+=`\n✓ ${dc.component||'?'}: ${dc.chosen||''}\n`;
+        h+=`  理由: ${dc.reason||''}\n`;
+        if(dc.alternative)h+=`  未选: ${dc.alternative}\n`;
+      });
+    }
+    // 部署前报告
+    h+=`\n━━━ 部署前报告 ━━━\n`;
+    h+=`▸ 所需 IAM 权限: bedrock:InvokeModel, bedrock-agentcore:*`;
+    if(s.scheduler)h+=`, scheduler:*`;
+    if((s.builtin_tools||[]).includes('browser'))h+=`, bedrock-agentcore:*Browser*`;
+    if((s.gateway_targets||[]).length)h+=`, bedrock-agentcore:InvokeGateway`;
+    h+=`\n`;
+    if(s.scheduler)h+=`▸ 附加资源: EventBridge Schedule (${s.scheduler.interval})\n`;
+    if((s.external_deps||[]).length)h+=`▸ 前置条件: ${s.external_deps.join('、')}\n`;
+    h+=`▸ 预估部署耗时: ${s.deploy_mode==='harness'?'3-5 分钟（CDK bootstrap + Harness 创建）':'2-4 分钟（容器构建 + Runtime 注册）'}\n`;
+    el.textContent=h;
+  }else if(tab==='prompt'){
+    el.textContent=_deepResult.system_prompt||'（未生成）';
+  }else if(tab==='code'){
+    const tc=_deepResult.tool_code||{};
+    if(!Object.keys(tc).length){el.textContent='无需额外工具代码（全部使用 AgentCore 内置工具）';}
+    else{el.textContent=Object.entries(tc).map(([k,v])=>`# ─── ${k}.py ───\n${v}`).join('\n\n');}
+  }else if(tab==='validation'){
+    const v=_deepResult.validation||{};
+    let h=v.valid?'✅ 校验通过\n':'❌ 校验未通过\n';
+    if((v.errors||[]).length)h+='\n错误:\n'+v.errors.map(e=>'  • '+e).join('\n');
+    if((v.warnings||[]).length)h+='\n警告:\n'+v.warnings.map(w=>'  ⚠ '+w).join('\n');
+    if((v.suggestions||[]).length)h+='\n建议:\n'+v.suggestions.map(s=>'  💡 '+s).join('\n');
+    el.textContent=h;
+  }
+}
+function deepApply(){
+  if(!_deepResult||!_deepResult.canvas_nodes)return;
+  buildFromSpec(_deepResult.canvas_nodes);
+  closeAI();
+  toast(tr('✨ 已生成画布（含完整配置），正在自动发布…'));
+  setTimeout(()=>{const rt=centerNode();if(rt&&!isIncomplete(rt)){
+    fetch('/api/publish',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload())})
+      .then(r=>r.json()).then(j=>{published=true;toast('✅ 已自动发布，可直接在 Playground 对话');render()})
+      .catch(()=>toast('⚠ 自动发布失败，请手动点击「本地发布」'))}},300);
+}
 function _aiCatalog(){
   const pick={runtime:['name','framework','model_id','system_prompt','region'],memory:['mem_name'],gateway:['gw_name'],
     mcp:['name','type','endpoint','description'],skill:['name','desc'],kb:['name','kb_id','region'],
@@ -1847,7 +2104,7 @@ function buildFromSpec(specNodes){
     if(!c.multi&&made.some(n=>n.type===t))return;  // 非 multi 去重
     const cfg={};c.fields.forEach(f=>cfg[f.k]=f.d);
     const ov=(sn.cfg&&typeof sn.cfg==='object')?sn.cfg:{};
-    Object.keys(ov).forEach(k=>{if(c.fields.some(f=>f.k===k)&&ov[k]!=null&&ov[k]!=='')cfg[k]=''+ov[k]});
+    Object.keys(ov).forEach(k=>{if((c.fields.some(f=>f.k===k)||k.startsWith('scheduler_'))&&ov[k]!=null&&ov[k]!=='')cfg[k]=''+ov[k]});
     if(c.multi){const k=c.fields[0].k;if(ov[k]==null||ov[k]==='')cfg[k]=cfg[k]+'_'+(made.filter(n=>n.type===t).length+1)}
     made.push({type:t,cfg})});
   if(!made.some(n=>n.type==='runtime')){const c=COMPONENTS.runtime,cfg={};c.fields.forEach(f=>cfg[f.k]=f.d);made.unshift({type:'runtime',cfg})}

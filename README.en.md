@@ -20,6 +20,8 @@
 - Drag-and-drop all AgentCore components; click a node to edit it in a popover, with field interlocks on dropdown change (e.g. Skill source inline/path/upload, Identity inbound/outbound, Gateway IAM/JWT, Policy Cedar/natural-language, Runtime code source ECR/S3)
 - ⚙️🚀 **Dual hub — Runtime or Harness**: Runtime (ships its own orchestration code, deployed as a container/artifact) or Harness (declarative, AgentCore-managed agent loop, with immutable versions + named endpoints for instant rollback) — pick one, switch as needed
 - ✨ **AI-generated canvas (NL→Canvas)**: describe the agent you want in one line and get an **editable canvas** of nodes and edges generated automatically; keep dragging to refine, with automatic pre-flight checks
+- 🧠 **Deep Generate**: 4-step intelligent orchestration (requirement decomposition → component config → System Prompt → validation) with SSE real-time progress streaming; auto-generates complete deployable artifacts + architecture decision rationale + pre-deploy report; results apply to canvas in one click
+- ⏰ **Scheduled triggers (EventBridge Scheduler)**: automatically introduced when the requirement includes periodic execution; deploy script generates `aws scheduler create-schedule` + IAM Role, supporting cron/rate expressions
 - 📦 **One-click scenario templates**: minimal chat / customer support (with tools) / data analysis / the full stack — fill the canvas in seconds
 - 🔗 Accurately-related edges (Runtime is the hub; MCP/Skill hang under the Gateway)
 
@@ -56,5 +58,6 @@ PORT=9000 STUDIO_PASSWORD=yourpass python3 server.py
 | File | Description |
 |---|---|
 | `index.html` | Single-file frontend (fonts inlined, works offline) |
-| `server.py` | Zero-dependency backend (publish / Playground / deploy / cloud invocation / NL→Canvas relay) |
+| `server.py` | Zero-dependency backend (publish / Playground / deploy / cloud invocation / NL→Canvas / Deep Generate relay) |
+| `deep_generate.py` | Deep Generate engine (4-step LLM orchestration + parallel optimization + SSE streaming progress) |
 | `Dockerfile` | Container image (bundles agentcore CLI + AWS CLI + zip) — optional, for packaging onto any container platform |

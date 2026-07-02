@@ -2,16 +2,56 @@
 """AgentCore Studio 后端 — 本地发布 + Playground 调用 + 可选云部署（零依赖，仅标准库）。
 启动: python3 server.py  →  http://127.0.0.1:8799  (可用 PORT 环境变量覆盖)
 仅绑定 127.0.0.1，会在本机执行生成的 agent 代码与 agentcore CLI，请勿暴露到公网。"""
-import json, os, sys, types, importlib.util, subprocess, re, base64, threading, time, queue, shutil, uuid, tempfile
+import json, os, sys, importlib.util, subprocess, re, base64, threading, time, queue, shutil, uuid, tempfile, logging
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import urlparse, parse_qs
+
+logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s", datefmt="%H:%M:%S")
+log = logging.getLogger("studio")
 
 AUTH = os.environ.get("STUDIO_PASSWORD")  # 设置则对所有 HTTP 请求启用 Basic Auth
 
 ROOT = os.path.dirname(os.path.abspath(__file__))
 WS = os.path.join(ROOT, "workspace")
+STATE_FILE = os.path.join(WS, ".studio_state.json")
 PUBLISHED = {}  # name -> {dir, cfg}
 JOBS = {}  # job_id -> {lines:[], done, ok, log, name}  后台部署任务（轮询式，绕开 App Runner 流式掐断）
+
+
+def _load_state():
+    """启动时从本地文件恢复 PUBLISHED 状态，容器重启不丢失。"""
+    global PUBLISHED
+    if not os.path.isfile(STATE_FILE):
+        return
+    try:
+        with open(STATE_FILE) as f:
+            saved = json.load(f)
+        for name, info in saved.items():
+            d = info.get("dir", "")
+            if os.path.isdir(d):
+                PUBLISHED[name] = info
+        log.info(f"已恢复 {len(PUBLISHED)} 个已发布 Agent 的状态")
+    except Exception as e:
+        log.warning(f"加载状态文件失败: {e}")
+
+
+def _save_state():
+    """将 PUBLISHED 持久化到本地（轻量，每次 publish 时调用）。"""
+    try:
+        serializable = {}
+        for name, info in PUBLISHED.items():
+            serializable[name] = {
+                "dir": info.get("dir", ""),
+                "cfg": info.get("cfg", {}),
+                "cloud_arn": info.get("cloud_arn"),
+                "cloud_region": info.get("cloud_region"),
+                "deployed": info.get("deployed", False),
+            }
+        os.makedirs(os.path.dirname(STATE_FILE), exist_ok=True)
+        with open(STATE_FILE, "w") as f:
+            json.dump(serializable, f, ensure_ascii=False, indent=2)
+    except Exception as e:
+        log.warning(f"保存状态文件失败: {e}")
 
 def write_project(name, files):
     d = os.path.join(WS, name); os.makedirs(d, exist_ok=True)
@@ -33,7 +73,6 @@ def clean_stale_region(d, target_region):
         if m and m.group(1) != target_region:
             old = m.group(1)
             os.remove(yaml_fp)
-            import shutil
             shutil.rmtree(os.path.join(d, ".bedrock_agentcore"), ignore_errors=True)
             return f"检测到旧部署区域 {old} 与目标 {target_region} 不一致，已清除本地状态，将在 {target_region} 全新创建"
     except Exception:
@@ -182,16 +221,6 @@ def cloud_status(d, region, name=None):
     # 托底：直接按名字查 AWS
     return _find_ready_runtime(region, name)
 
-def _stub_sdk():
-    if "bedrock_agentcore" in sys.modules: return
-    try: __import__("bedrock_agentcore")
-    except Exception:
-        m = types.ModuleType("bedrock_agentcore")
-        class _App:
-            def entrypoint(self, f): return f
-            def run(self, *a, **k): pass
-        m.BedrockAgentCoreApp = _App
-        sys.modules["bedrock_agentcore"] = m
 
 def bedrock_reply(prompt, cfg, history=None):
     """直接调用 Bedrock converse 返回真实模型回复。无 boto3/凭证/模型权限则抛异常。"""
@@ -215,7 +244,7 @@ def bedrock_reply(prompt, cfg, history=None):
             msgs.append({"role": role, "content": [{"text": str(txt)}]})
     msgs.append({"role": "user", "content": [{"text": prompt}]})
     kw = {"modelId": model, "messages": msgs,
-          "inferenceConfig": {"maxTokens": 1024, "temperature": 0.7}}
+          "inferenceConfig": {"maxTokens": cfg.get("max_tokens") or 1024, "temperature": 0.7}}
     if sp.strip(): kw["system"] = [{"text": sp.strip()}, {"cachePoint": {"type": "default"}}]
     r = br.converse(**kw)
     text = r["output"]["message"]["content"][0]["text"]
@@ -252,7 +281,7 @@ def anthropic_reply(prompt, cfg, sp=None, history=None):
             msgs.append({"role": role, "content": str(txt)})
     msgs.append({"role": "user", "content": prompt})
     def _call(mid):
-        kw = {"model": mid, "max_tokens": 1024, "messages": msgs}
+        kw = {"model": mid, "max_tokens": cfg.get("max_tokens") or 1024, "messages": msgs}
         if system.strip(): kw["system"] = system.strip()
         r = client.messages.create(**kw)
         _txt = "".join(b.text for b in r.content if getattr(b, "type", "") == "text") or "（空响应）"
@@ -266,39 +295,80 @@ def anthropic_reply(prompt, cfg, sp=None, history=None):
             return _call("claude-sonnet-4-5")
         raise
 
-def llm_complete(prompt, system_prompt, model=None, region=None):
+def llm_complete(prompt, system_prompt, model=None, region=None, max_tokens=None):
     """单次 LLM 补全（NL→画布等用）。优先 Bedrock converse，不可达则 Anthropic 代理兜底。"""
     cfg = {"model": model or "anthropic.claude-sonnet-4-5-20250929-v1:0",
-           "region": region or "us-west-2", "system_prompt": system_prompt or ""}
+           "region": region or "us-west-2", "system_prompt": system_prompt or "",
+           "max_tokens": max_tokens or 1024}
     try:
         return bedrock_reply(prompt, cfg, None)[0]
     except Exception:
         return anthropic_reply(prompt, cfg, system_prompt, None)[0]
 
+def _run_entry_sandboxed(entry, name, prompt, sp=None, history=None):
+    """在子进程中执行 entry.py 的 invoke 函数，避免恶意代码污染主进程。"""
+    runner_code = f"""
+import json, sys, importlib.util, types
+# 优先用真实 SDK（entry 可能 import bedrock_agentcore.tools.* 内置工具）；缺失才 stub 最小 App
+try:
+    import bedrock_agentcore  # noqa: F401
+except ImportError:
+    m = types.ModuleType("bedrock_agentcore")
+    class _App:
+        def entrypoint(self, f): return f
+        def run(self, *a, **k): pass
+    m.BedrockAgentCoreApp = _App
+    sys.modules["bedrock_agentcore"] = m
+spec = importlib.util.spec_from_file_location("ac_entry", {json.dumps(entry)})
+mod = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(mod)
+payload = json.loads(sys.stdin.read())
+res = mod.invoke(payload)
+# strands Agent 会把回复流式打印到 stdout，用标记行隔离结果 JSON
+print("\\n__AC_RESULT__" + json.dumps(res, ensure_ascii=False))
+"""
+    payload = json.dumps({"prompt": prompt, "history": history or [], **({"system_prompt": sp} if sp else {})})
+    try:
+        r = subprocess.run(
+            [sys.executable, "-c", runner_code],
+            input=payload, capture_output=True, text=True, timeout=60,
+            cwd=os.path.dirname(entry),
+            env={**os.environ, "PYTHONIOENCODING": "utf-8"})
+        if r.returncode == 0 and r.stdout.strip():
+            # 从标记行取结果（strands 会把流式回复混进 stdout）；无标记则按整体 JSON 解析（兼容旧 entry）
+            raw = r.stdout.strip()
+            marker = raw.rfind("__AC_RESULT__")
+            res = json.loads(raw[marker + len("__AC_RESULT__"):] if marker >= 0 else raw)
+            out = res.get("result") or res.get("error") or json.dumps(res)
+            if out and not res.get("error"):
+                return out, res.get("trace")
+    except subprocess.TimeoutExpired:
+        log.warning(f"entry.py 执行超时: {name}")
+    except Exception as e:
+        log.debug(f"entry.py 子进程执行失败 ({name}): {e}")
+    return None, None
+
+
 def run_agent(name, prompt, sp=None, history=None):
     info = PUBLISHED.get(name)
     if not info: return "尚未发布，请先点击「发布」", "error", None
-    _stub_sdk()
     entry = os.path.join(info["dir"], info["cfg"].get("entry", "agentcore_entry.py"))
-    # 1) 优先真实运行已发布的 entry.py（需框架依赖，如 strands）
-    try:
-        spec = importlib.util.spec_from_file_location("ac_" + name, entry)
-        mod = importlib.util.module_from_spec(spec); spec.loader.exec_module(mod)
-        res = mod.invoke({"prompt": prompt, "history": history or [], **({"system_prompt": sp} if sp else {})})
-        out = res.get("result") or res.get("error") or json.dumps(res)
-        if out and not res.get("error"): return out, "real", res.get("trace")
-    except Exception:
-        pass
+    # 1) 在子进程中运行 entry.py（沙箱隔离，超时保护）
+    if os.path.isfile(entry):
+        out, trace = _run_entry_sandboxed(entry, name, prompt, sp, history)
+        if out:
+            return out, "real", trace
+        log.info(f"entry.py 未成功执行 ({name})，回退到 Bedrock converse")
     # 2) 直连 Bedrock converse（有 boto3+凭证+模型权限即返回真实回复；但不执行已编排的工具）
     try:
         txt, tr = bedrock_reply(prompt, info["cfg"], history); return txt, "bedrock", tr
-    except Exception:
-        pass
+    except Exception as e:
+        log.debug(f"Bedrock converse 失败 ({name}): {e}")
     # 2.5) Bedrock 不可达时，经 Anthropic 代理端点兜底（ANTHROPIC_BASE_URL/ANTHROPIC_API_KEY）
     try:
         txt, tr = anthropic_reply(prompt, info["cfg"], sp, history); return txt, "bedrock", tr
-    except Exception:
-        pass
+    except Exception as e:
+        log.debug(f"Anthropic 兜底失败 ({name}): {e}")
     # 3) 文本兜底（无依赖/无凭证）
     return fallback(prompt, info["cfg"]), "mock", None
 
@@ -458,7 +528,9 @@ class H(BaseHTTPRequestHandler):
             if job["done"]: resp["log"] = job["log"]
             self._send(200, json.dumps(resp)); return
         path = "/index.html" if self.path in ("/", "") else self.path.split("?")[0]
-        fp = os.path.join(ROOT, path.lstrip("/"))
+        fp = os.path.realpath(os.path.join(ROOT, path.lstrip("/")))
+        if not fp.startswith(os.path.realpath(ROOT)):
+            self._send(403, "forbidden", "text/plain"); return
         if os.path.isfile(fp):
             ct = "text/html; charset=utf-8" if fp.endswith(".html") else "text/plain"
             with open(fp, "rb") as f: self._send(200, f.read(), ct)
@@ -484,6 +556,7 @@ class H(BaseHTTPRequestHandler):
                 except Exception as e:
                     zip_warn.append(f"{fn}: {e}")
             PUBLISHED[data["name"]] = {"dir": d, "cfg": data.get("cfg", {})}
+            _save_state()
             region_notice = clean_stale_region(d, (data.get("cfg") or {}).get("region"))
             resp = {"ok": True, "dir": d, "zip_warn": zip_warn}
             if region_notice: resp["region_notice"] = region_notice
@@ -492,7 +565,9 @@ class H(BaseHTTPRequestHandler):
             if cs:
                 PUBLISHED[data["name"]]["cloud_arn"] = cs.get("arn")
                 PUBLISHED[data["name"]]["cloud_region"] = cs.get("region")
+                _save_state()
                 resp["cloud_ready"] = True; resp["cloud_agent"] = cs["agent_id"]; resp["cloud_region"] = cs["region"]
+            log.info(f"发布 Agent: {data['name']}")
             self._send(200, json.dumps(resp))
         elif self.path == "/api/invoke":
             out, mode, trace = run_agent(data["name"], data.get("prompt", ""), data.get("system_prompt"), data.get("history"))
@@ -515,6 +590,36 @@ class H(BaseHTTPRequestHandler):
             self._send(200, json.dumps(list_specs(data.get("region"))))
         elif self.path == "/api/get-spec":
             self._send(200, json.dumps(get_spec(data.get("region"), data.get("name"))))
+        elif self.path == "/api/deep-generate":
+            from deep_generate import deep_generate
+            nl = data.get("prompt", "")
+            region = data.get("region", "us-west-2")
+            if not nl.strip():
+                self._send(200, json.dumps({"ok": False, "error": "请输入需求描述"})); return
+            self.send_response(200)
+            self.send_header("Content-Type", "text/event-stream")
+            self.send_header("Cache-Control", "no-cache")
+            self.send_header("X-Accel-Buffering", "no")
+            self.end_headers()
+            def _sse_progress(step, total, label):
+                try:
+                    evt = json.dumps({"step": step, "total": total, "label": label}, ensure_ascii=False)
+                    self.wfile.write(f"event: progress\ndata: {evt}\n\n".encode())
+                    self.wfile.flush()
+                except Exception:
+                    pass
+            try:
+                def _deep_llm(p, sp, max_tokens=4096):
+                    return llm_complete(p, sp, max_tokens=max_tokens)
+                result = deep_generate(nl, _deep_llm, region, on_progress=_sse_progress)
+                final = json.dumps(result, ensure_ascii=False)
+                self.wfile.write(f"event: done\ndata: {final}\n\n".encode())
+                self.wfile.flush()
+            except Exception as e:
+                log.error(f"深度生成失败: {e}")
+                err = json.dumps({"ok": False, "error": str(e)[:500]}, ensure_ascii=False)
+                self.wfile.write(f"event: done\ndata: {err}\n\n".encode())
+                self.wfile.flush()
         else: self._send(404, "{}")
     def log_message(self, *a): pass
 
@@ -549,7 +654,9 @@ def start_deploy_job(name):
             p.stdout.close(); rc = p.wait(timeout=1800)
             out = "\n".join(lines)
             ok = rc == 0 or "Deployment completed successfully" in out or "Agent created/updated" in out
-            if ok: info["deployed"] = True
+            if ok:
+                info["deployed"] = True
+                _save_state()
             job["ok"] = ok; job["log"] = out[-4000:]
         except Exception as e:
             job["ok"] = False; job["log"] = ("\n".join(lines) + f"\ndeploy error: {e}")[-4000:]
@@ -559,6 +666,7 @@ def start_deploy_job(name):
 
 if __name__ == "__main__":
     os.makedirs(WS, exist_ok=True)
+    _load_state()
     port = int(os.environ.get("PORT", 8799))
     host = os.environ.get("HOST", "127.0.0.1")
     print(f"AgentCore Studio  →  http://{host}:{port}   (Ctrl+C 退出)")

@@ -14,7 +14,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends zip curl unzip 
 RUN curl -fsSL https://deb.nodesource.com/setup_20.x -o /tmp/nodesetup.sh && bash /tmp/nodesetup.sh && \
     apt-get install -y --no-install-recommends nodejs && rm -rf /var/lib/apt/lists/* /tmp/nodesetup.sh && \
     (npx -y @aws/agentcore@preview --version >/dev/null 2>&1 || true)
-COPY index.html compare.html server.py i18n.py i18n.js ./
+COPY index.html compare.html server.py deep_generate.py ./
 ENV HOST=0.0.0.0 PORT=8080 AGENTCORE_SUPPRESS_RECOMMENDATION=1
 EXPOSE 8080
 CMD ["uv", "run", "server.py"]
